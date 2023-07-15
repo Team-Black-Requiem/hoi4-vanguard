@@ -4,7 +4,7 @@ Requires Python
 
 
 ## GFX-Walk
-GFX-semifinal usage instructions: drop in the CG-Black-Requiem folder, and run python primary.py
+GFX-semifinal usage instructions: drop in your root mod folder, and run python primary.py
 Goes for a walk() through specified folders to find relevant files and make .gfx entries for them.
 
 Arguments
