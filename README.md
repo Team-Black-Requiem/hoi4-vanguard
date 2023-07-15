@@ -1,9 +1,9 @@
-## hoi4-vanguard
+# hoi4-vanguard
 A HOI4 interpreter in Python
 Requires Python
 
 
-# GFX-Walk
+## GFX-Walk
 GFX-semifinal usage instructions: drop in the CG-Black-Requiem folder, and run python primary.py
 Goes for a walk() through specified folders to find relevant files and make .gfx entries for them.
 
