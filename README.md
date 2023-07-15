@@ -1,5 +1,5 @@
 # hoi4-vanguard
-A HOI4 interpreter in Python
+A HOI4 script toolset  
 Requires Python
 
 
