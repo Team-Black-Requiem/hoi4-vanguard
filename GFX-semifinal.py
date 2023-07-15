@@ -45,13 +45,13 @@ class GFXEntryGenerator:
             }
         """
 
-    def find_files(self, subfolder, extension):
+    def find_files(self, subfolder, extensions):
         script_dir = os.path.dirname(os.path.abspath(inspect.stack()[-1].filename))
         search_path = os.path.join(self.base_dir, 'gfx', subfolder)
         discovered_files = []
         for root, dirs, files in os.walk(search_path):
             for file in files:
-                if file.lower().endswith(extension):
+                if any(file.lower().endswith(extension) for extension in extensions):
                     file_name = file
                     folder_path = os.path.relpath(root, script_dir).replace('\\', '/')
                     discovered_files.append((file_name, folder_path))
@@ -71,6 +71,15 @@ class GFXEntryGenerator:
             file.write("}")
 
     def generate_gfx_entries(self, args):
+        if args.subfolder:
+            subfolder_files = self.find_files(args.subfolder, ['.dds', '.png'])
+            output_filename = '{}.gfx'.format(os.path.basename(args.subfolder))
+            self.generate_entries(subfolder_files, output_filename, self.spritetype_template)
+            print('Successfully generated spritetype entries for {} files in the {} subfolder.'.format(len(subfolder_files), args.subfolder))
+            if args.subfolder == 'interface/goals':
+                self.generate_entries(subfolder_files, 'goals_shines.gfx', self.shines_template)
+                print('Successfully generated shines entries for {} files in the {} subfolder.'.format(len(subfolder_files), args.subfolder))
+            
         if args.goals_shines:
             goals_files = self.find_files('interface/goals', '.dds')
             self.generate_entries(goals_files, 'goals.gfx', self.spritetype_template)
@@ -103,6 +112,8 @@ def main():
                         help='generate event pictures entries')
     parser.add_argument('--leader-gfx', action='store_true',
                         help='generate leader portrait entries')
+    parser.add_argument('--subfolder', type=str, default='',
+                        help='subfolder within /gfx/')
     args = parser.parse_args()
 
     generator = GFXEntryGenerator()
