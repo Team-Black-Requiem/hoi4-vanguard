@@ -4,8 +4,8 @@ import csv
 class Box:
     def __init__(self, name):
         self.name = name
-        self.x = None
-        self.y = None
+        self.x = 0
+        self.y = 0
         self.text_boxes = []
         self.collapsed = False
 
@@ -35,6 +35,9 @@ def create_instance(item):
         box_text.pack(pady=5, padx=5)
         box.text_boxes.append(box_text)
 
+    # Set a tag on the box's frame
+    box.frame.addtag_withtag("movable", box.frame)
+
 def toggle_collapse(box):
     if box.collapsed:
         for text_box in box.text_boxes:
@@ -51,18 +54,17 @@ def start_drag(event, box):
     
 def on_drag(event):
     if 'drag_data' in globals():
-        box = drag_data['box']
-        if box.x is None or box.y is None:
-            box.x = event.x
-            box.y = event.y
-        else:
-            dx = event.x - drag_data['x']
-            dy = event.y - drag_data['y']
-            x = box.x + dx
-            y = box.y + dy
-            viewport.move(box.frame, dx, dy)
-            box.x = x
-            box.y = y
+        data = drag_data
+        box = data['box']
+        dx = event.x - data['x']
+        dy = event.y - data['y']
+        x = box.x + dx
+        y = box.y + dy
+        viewport.move(box.frame, dx, dy)
+        box.x = x
+        box.y = y
+        data['x'] = event.x
+        data['y'] = event.y
 
 def start_box_drag(event, box):
     global box_drag_data
@@ -75,9 +77,12 @@ def on_box_drag(event):
         dy = event.y - box_drag_data['y']
         x = box.x + dx
         y = box.y + dy
-        viewport.move(box.frame, dx, dy)
-        box.x = x
-        box.y = y
+        
+        # Check for the presence of the "movable" tag
+        if "movable" in viewport.gettags(box.frame):
+            viewport.move(box.frame, dx, dy)
+            box.x = x
+            box.y = y
     
 def on_box_drop(event):
     if 'box_drag_data' in globals():
