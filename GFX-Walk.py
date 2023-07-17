@@ -1,4 +1,5 @@
 import os
+import re
 import inspect
 import argparse
 
@@ -17,7 +18,7 @@ class GFXEntryGenerator:
                 texturefile = "<folder>/<filename>"
                 effectFile = "gfx/FX/buttonstate.lua"
                 animation = {
-                    animationmaskfile = "gfx/interface/goals/<subfolder>/<filename>"
+                    animationmaskfile = "<folder>/<filename>"
                     animationtexturefile = "gfx/interface/goals/shine_overlay.dds"
                     animationrotation = -90.0
                     animationlooping = no
@@ -62,13 +63,33 @@ class GFXEntryGenerator:
         with open(output_file, 'w') as file:
             file.write("spriteTypes = {\n")
             for file_name, folder_path in file_list:
-                sprite_name = 'GFX_' + os.path.splitext(file_name)[0]
+                sprite_name = self.generate_sprite_name(file_name, folder_path) #Pain. See Method below
                 entry = template.replace('<sprite name>', sprite_name)
                 entry = entry.replace('<folder>', folder_path)
                 entry = entry.replace('<filename>', file_name)
                 entry = entry.replace('//', '/')
                 file.write(entry)
             file.write("}")
+
+    def generate_sprite_name(self, file_name, folder_path): #ineffecient af and a crime against Big O. Using chars to preserve original capitalization. Lots of edge cases.
+        sprite_name = os.path.splitext(file_name)[0]
+        subfolder = folder_path.split('/')[-1].upper()      #Get the second-to-last part of the folder path
+        sprite_name_parts = re.split(r'[-_ ]', sprite_name) #Slap Chop
+        if len(subfolder) == 3 and subfolder.isupper():     #Checks if in a TAG subfolder
+            if sprite_name.startswith(subfolder):           #Checks if the file already has TAG in the name
+                sprite_name_parts[0] = ''.join([char.upper() if char.isupper() else char for char in sprite_name_parts[0]])  # Make the first part match the capitalization of file_name
+                sprite_name = 'GFX_{}'.format('_'.join([part[:1].upper() + part[1:] if i != 0 else part for i, part in enumerate(sprite_name_parts)]))
+            elif sprite_name.startswith("GFX_"):            #Checks if the file already started with GFX_
+                sprite_name = 'GFX_{}'.format('_'.join([part[:1].upper() + part[1:] for part in sprite_name_parts[1:]]))
+            else:   
+                sprite_name = 'GFX_{}_{}'.format(subfolder.upper(), '_'.join([part[:1].upper() + part[1:] for part in sprite_name_parts]))
+        elif sprite_name.startswith("GFX_"):                #Checks if the file already started with GFX_
+            sprite_name = 'GFX_{}'.format('_'.join([part[:1].upper() + part[1:] for part in sprite_name_parts[1:]]))
+            #print("Root folder case 1")
+        else:
+            sprite_name = 'GFX_{}'.format('_'.join([part[:1].upper() + part[1:] for part in sprite_name_parts]))
+            #print("Root folder case 2")
+        return sprite_name
 
     def generate_gfx_entries(self, args):
         if args.subfolder:
@@ -101,7 +122,6 @@ class GFXEntryGenerator:
             self.generate_entries(leader_portrait_files, 'leaders.gfx', self.spritetype_template)
             print('Successfully generated leader portrait entries for {} files.'.format(len(leader_portrait_files)))
 
-
 def main():
     parser = argparse.ArgumentParser(description='Generate goals, shines, and ideas entries')
     parser.add_argument('--goals-shines', action='store_true',
@@ -118,7 +138,6 @@ def main():
 
     generator = GFXEntryGenerator()
     generator.generate_gfx_entries(args)
-
 
 if __name__ == '__main__':
     main()
