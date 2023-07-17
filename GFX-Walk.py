@@ -1,6 +1,6 @@
 import os
 import re
-import inspect
+import sys
 import argparse
 
 class GFXEntryGenerator:
@@ -47,7 +47,7 @@ class GFXEntryGenerator:
         """
 
     def find_files(self, subfolder, extensions):
-        script_dir = os.path.dirname(os.path.abspath(inspect.stack()[-1].filename))
+        script_dir = os.path.dirname(sys.executable)  # Use the directory of the executable as the base directory
         search_path = os.path.join(self.base_dir, 'gfx', subfolder)
         discovered_files = []
         for root, dirs, files in os.walk(search_path):
