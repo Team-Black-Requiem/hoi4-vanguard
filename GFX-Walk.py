@@ -1,6 +1,7 @@
 import os
 import re
-import sys
+import string
+import inspect
 import argparse
 
 class GFXEntryGenerator:
@@ -47,7 +48,7 @@ class GFXEntryGenerator:
         """
 
     def find_files(self, subfolder, extensions):
-        script_dir = os.path.dirname(sys.executable)  # Use the directory of the executable as the base directory
+        script_dir = os.path.dirname(os.path.abspath(inspect.stack()[-1].filename))
         search_path = os.path.join(self.base_dir, 'gfx', subfolder)
         discovered_files = []
         for root, dirs, files in os.walk(search_path):
@@ -71,25 +72,52 @@ class GFXEntryGenerator:
                 file.write(entry)
             file.write("}")
 
-    def generate_sprite_name(self, file_name, folder_path): #ineffecient af and a crime against Big O. Using chars to preserve original capitalization. Lots of edge cases.
+    def generate_sprite_name(self, file_name, folder_path): #Big O comes here to die
         sprite_name = os.path.splitext(file_name)[0]
-        subfolder = folder_path.split('/')[-1].upper()      #Get the second-to-last part of the folder path
-        sprite_name_parts = re.split(r'[-_ ]', sprite_name) #Slap Chop
-        if len(subfolder) == 3 and subfolder.isupper():     #Checks if in a TAG subfolder
-            if sprite_name.startswith(subfolder):           #Checks if the file already has TAG in the name
-                sprite_name_parts[0] = ''.join([char.upper() if char.isupper() else char for char in sprite_name_parts[0]])  # Make the first part match the capitalization of file_name
-                sprite_name = 'GFX_{}'.format('_'.join([part[:1].upper() + part[1:] if i != 0 else part for i, part in enumerate(sprite_name_parts)]))
-            elif sprite_name.startswith("GFX_"):            #Checks if the file already started with GFX_
-                sprite_name = 'GFX_{}'.format('_'.join([part[:1].upper() + part[1:] for part in sprite_name_parts[1:]]))
-            else:   
-                sprite_name = 'GFX_{}_{}'.format(subfolder.upper(), '_'.join([part[:1].upper() + part[1:] for part in sprite_name_parts]))
-        elif sprite_name.startswith("GFX_"):                #Checks if the file already started with GFX_
-            sprite_name = 'GFX_{}'.format('_'.join([part[:1].upper() + part[1:] for part in sprite_name_parts[1:]]))
-            #print("Root folder case 1")
+        sprite_name_parts = [part.lower() for part in re.split(r'[-_ ]', sprite_name)]  #Slap Chop
+        subfolder = folder_path.split('/')[-1]                              # Get the last part of the folder path
+        if len(subfolder) == 3:
+            subfolder = subfolder.upper()
+        for i in range(min(2, len(sprite_name_parts))):
+            if sprite_name_parts[i] == subfolder.lower():
+                sprite_name_parts[i] = subfolder
+                                                                            #OH BOY DO I LOVE IF STATEMENTS
+        if "interface/ideas" in folder_path:                                #GFX_idea handling for ideas
+            if sprite_name_parts[0].lower() in ["gfx", "idea", "ideas"]:
+                sprite_name_parts[0] = "GFX_idea"
+                if subfolder.isalnum() and len(subfolder) == 3:
+                    if subfolder not in sprite_name_parts:
+                        sprite_name_parts.insert(1, subfolder)
+            elif subfolder.isalnum() and len(subfolder) == 3:
+                if subfolder not in sprite_name_parts:
+                    sprite_name_parts.insert(0, "GFX_idea")
+                    sprite_name_parts.insert(1, subfolder)
+                else:
+                    sprite_name_parts.insert(0, "GFX_idea")  
+            else:
+                sprite_name_parts.insert(0, "GFX_idea")
+                  
+        elif sprite_name_parts[0].lower() in ["gfx", "idea", "ideas"]:
+            sprite_name_parts[0] = "GFX"
+            if subfolder.isalnum() and len(subfolder) == 3:
+                if subfolder not in sprite_name_parts:
+                     sprite_name_parts.insert(0, subfolder)
+        elif subfolder.isalnum() and len(subfolder) == 3:
+            if subfolder not in sprite_name_parts:
+                sprite_name_parts.insert(0, "GFX")
+                sprite_name_parts.insert(1, subfolder)                
+            else:
+                sprite_name_parts.insert(0, "GFX")  
         else:
-            sprite_name = 'GFX_{}'.format('_'.join([part[:1].upper() + part[1:] for part in sprite_name_parts]))
-            #print("Root folder case 2")
-        return sprite_name
+            sprite_name_parts.insert(0, "GFX")  
+            subfolder = ""  # Make subfolder empty if it doesn't meet the criteria
+
+        final_sprite_name = '_'.join(sprite_name_parts)  # Join the parts with underscores
+        final_sprite_name = final_sprite_name.rstrip(string.punctuation)
+        
+        return final_sprite_name
+
+
 
     def generate_gfx_entries(self, args):
         if args.subfolder:
