@@ -184,6 +184,7 @@
     <property name="title">
      <string>File</string>
     </property>
+    <addaction name="actionLink_Arsenal_To_Mod_Folder"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
@@ -246,6 +247,11 @@
   <action name="actionRedo">
    <property name="text">
     <string>Redo</string>
+   </property>
+  </action>
+  <action name="actionLink_Arsenal_To_Mod_Folder">
+   <property name="text">
+    <string>Link Arsenal To Mod Folder</string>
    </property>
   </action>
  </widget>
