@@ -35,6 +35,12 @@
       <height>781</height>
      </rect>
     </property>
+    <property name="minimumSize">
+     <size>
+      <width>1041</width>
+      <height>781</height>
+     </size>
+    </property>
    </widget>
    <widget class="QTabWidget" name="tabWidget">
     <property name="geometry">
