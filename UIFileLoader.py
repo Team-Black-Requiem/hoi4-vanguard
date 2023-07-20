@@ -75,7 +75,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tools.pop(tool_name, None)  # Remove the tool from the dictionary
         self.tabWidget.removeTab(index)
 
-
 def main():
     app = QtWidgets.QApplication(sys.argv)
     main = MainWindow()
