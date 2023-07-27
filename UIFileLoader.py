@@ -1,5 +1,6 @@
 from PyQt6 import QtWidgets, uic
 import sys
+from FocusToolDesigner import FocusTreeDesignerTool
 
 class FocusTreeTool(QtWidgets.QWidget):
     def __init__(self, parent=None):
