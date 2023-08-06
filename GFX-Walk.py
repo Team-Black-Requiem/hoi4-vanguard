@@ -129,7 +129,7 @@ class GFXEntryGenerator:
     #                file.write(entry)
     #        file.write("}")
 
-    def generate_entries(self, file_list, output_file, template, mode, sprite_file=None):
+    def generate_entries(self, file_list, output_file, template, mode=None, sprite_file=None):
         with open(output_file, 'w') as file:
             file.write("spriteTypes = {\n")
             if mode:
@@ -147,19 +147,19 @@ class GFXEntryGenerator:
 
                 # Find the remainder files and append to the output file
                 remainder_files = self.find_remainder_files(file_list, sprite_types)
-                for file_name, folder_path in remainder_files:
-                    sprite_name = self.generate_sprite_name(file_name, folder_path)
-                    entry = template.replace('<sprite name>', sprite_name)
-                    entry = entry.replace('<folder>', folder_path)
-                    entry = entry.replace('<filename>', file_name)  # Use file_name here
+                for file_name_y, folder_path_y in remainder_files:
+                    sprite_name_r = self.generate_sprite_name(file_name_y, folder_path_y)
+                    entry = template.replace('<sprite name>', sprite_name_r)
+                    entry = entry.replace('<folder>', folder_path_y)
+                    entry = entry.replace('<filename>', file_name_y)  # Use file_name here
                     entry = entry.replace('//', '/')
                     file.write(entry)
             else:
-                for file_name, folder_path in file_list:
-                    sprite_name = self.generate_sprite_name(file_name, folder_path)
-                    entry = template.replace('<sprite name>', sprite_name)
-                    entry = entry.replace('<folder>', folder_path)
-                    entry = entry.replace('<filename>', file_name)
+                for file_name_z, folder_path_z in file_list:
+                    sprite_name_s = self.generate_sprite_name(file_name_z, folder_path_z)
+                    entry = template.replace('<sprite name>', sprite_name_s)
+                    entry = entry.replace('<folder>', folder_path_z)
+                    entry = entry.replace('<filename>', file_name_z)
                     entry = entry.replace('//', '/')
                     file.write(entry)
 
@@ -189,7 +189,7 @@ class GFXEntryGenerator:
                     sprite_name_parts.insert(0, "GFX_idea")  
             else:
                 sprite_name_parts.insert(0, "GFX_idea")              
-        elif sprite_name_parts[0].lower() in ["gfx", "idea", "ideas"]:
+        elif sprite_name_parts[0].lower() in ["gfx"]:
             sprite_name_parts[0] = "GFX"
             if subfolder.isalnum() and len(subfolder) == 3:
                 if subfolder not in sprite_name_parts:
@@ -215,32 +215,33 @@ class GFXEntryGenerator:
         if args.subfolder:
             subfolder_files = self.GFXfinder.find_files(subfolder=args.subfolder, extensions=['.dds', '.png'])
             output_filename = '{}.gfx'.format(os.path.basename(args.subfolder))
-            self.generate_entries(subfolder_files, output_filename, self.spritetype_template)
+            self.generate_entries(subfolder_files, output_filename, self.spritetype_template, mode=args.remainder_mode, sprite_file=args.sprite_file_path)
             print('Successfully generated spritetype entries for {} files in the {} subfolder.'.format(len(subfolder_files), args.subfolder))
             if args.subfolder == 'interface/goals':
-                self.generate_entries(subfolder_files, 'goals_shines.gfx', self.shines_template)
+                self.generate_entries(subfolder_files, 'goals_shines.gfx', self.shines_template, mode=args.remainder_mode, sprite_file=args.sprite_file_path)
                 print('Successfully generated shines entries for {} files in the {} subfolder.'.format(len(subfolder_files), args.subfolder))
-            
+
         if args.goals_shines:
             goals_files = self.GFXfinder.find_files(subfolder='interface/goals', extensions='.dds')
-            self.generate_entries(goals_files, 'goals.gfx', self.spritetype_template)
-            self.generate_entries(goals_files, 'goals_shines.gfx', self.shines_template)
+            self.generate_entries(goals_files, 'goals.gfx', self.spritetype_template, mode=args.remainder_mode, sprite_file=args.sprite_file_path)
+            self.generate_entries(goals_files, 'goals_shines.gfx', self.shines_template, mode=args.remainder_mode, sprite_file=args.sprite_file_path)
             print('Successfully generated goals and shines entries for {} files.'.format(len(goals_files)))
 
         if args.ideas:
             ideas_files = self.GFXfinder.find_files(subfolder='interface/ideas', extensions='.dds')
-            self.generate_entries(ideas_files, 'ideas.gfx', self.spritetype_template)
+            self.generate_entries(ideas_files, 'ideas.gfx', self.spritetype_template, mode=args.remainder_mode, sprite_file=args.sprite_file_path)
             print('Successfully generated ideas entries for {} files.'.format(len(ideas_files)))
 
         if args.event_pictures:
             event_pictures_files = self.GFXfinder.find_files(subfolder='event_pictures', extensions='.dds')
-            self.generate_entries(event_pictures_files, 'event_pictures.gfx', self.spritetype_template)
+            self.generate_entries(event_pictures_files, 'event_pictures.gfx', self.spritetype_template, mode=args.remainder_mode, sprite_file=args.sprite_file_path)
             print('Successfully generated event pictures entries for {} files.'.format(len(event_pictures_files)))
-            
+
         if args.leader_gfx:
             leader_portrait_files = self.GFXfinder.find_files(subfolder='leaders', extensions='.dds')
-            self.generate_entries(leader_portrait_files, 'leaders.gfx', self.spritetype_template)
+            self.generate_entries(leader_portrait_files, 'leaders.gfx', self.spritetype_template, mode=args.remainder_mode, sprite_file=args.sprite_file_path)
             print('Successfully generated leader portrait entries for {} files.'.format(len(leader_portrait_files)))
+
 
 def main():
     parser = argparse.ArgumentParser(description='Generate goals, shines, and ideas entries')
@@ -254,6 +255,13 @@ def main():
                         help='generate leader portrait entries')
     parser.add_argument('--subfolder', type=str, default='',
                         help='subfolder within /gfx/')
+    
+    
+    parser.add_argument('--remainder-mode', action='store_true',
+                        help='enable remainder-mode for sprite generation keeping preexising sprite entries')
+    parser.add_argument('--sprite-file-path', type=str, default=None,
+                        help='path to the sprite file for mode-based sprite generation')
+    
     args = parser.parse_args()
 
     generator = GFXEntryGenerator()
