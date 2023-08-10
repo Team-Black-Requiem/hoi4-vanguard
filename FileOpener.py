@@ -4,33 +4,29 @@ import platform
 import tkinter as tk
 from tkinter import filedialog
 
-def open_file_explorer(path):
-    if platform.system() == "Windows":
-        os.startfile(path)
-    elif platform.system() == "Darwin":  # macOS
-        subprocess.run(["open", path])
-    else:  # Assuming Linux or other Unix-like systems
-        subprocess.run(["xdg-open", path])
+class FileSelectorUtility:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.withdraw()  # Hide the main window
+        self.selected_file = None  # Initialize the selected_file variable
 
-def open_file_dialog(initial_dir):
-    root = tk.Tk()
-    root.withdraw()  # Hide the main window
+    def open_file_explorer(self, path):
+        if platform.system() == "Windows":
+            os.startfile(path)
+        elif platform.system() == "Darwin":  # macOS
+            subprocess.run(["open", path])
+        else:  # Assuming Linux or other Unix-like systems
+            subprocess.run(["xdg-open", path])
 
-    file_path = filedialog.askopenfilename(initialdir=initial_dir)
-    return file_path
-
-def execute_python_file(file_path):
-    if file_path:
-        try:
-            with open(file_path, "r") as file:
-                code = file.read()
-                exec(code)
-        except Exception as e:
-            print("Error executing the file:", e)
+    def select_file(self, initial_dir):
+        file_path = filedialog.askopenfilename(initialdir=initial_dir)
+        self.selected_file = file_path
+        return self.selected_file
 
 if __name__ == "__main__":
-    preset_path = r"C:\Users\micks\OneDrive\Documents\GitHub\CG-Black-Requiem"
-    selected_file = open_file_dialog(preset_path)
+    file_selector = FileSelectorUtility()
+    selected_file = file_selector.select_file(r"C:\Users\micks\OneDrive\Documents\GitHub\CG-Black-Requiem")
 
     if selected_file:
-        print("Selected File:", selected_file)
+        print("Selected File (Inside Module):", selected_file)
+        
