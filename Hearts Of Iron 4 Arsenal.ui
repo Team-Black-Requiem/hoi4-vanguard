@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1226</width>
+    <height>855</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>1226</width>
+    <height>855</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Hearts Of Iron 4: Arsenal</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="minimumSize">
+    <size>
+     <width>1226</width>
+     <height>812</height>
+    </size>
+   </property>
+   <widget class="QWidget" name="Viewport" native="true">
+    <property name="geometry">
+     <rect>
+      <x>180</x>
+      <y>30</y>
+      <width>1041</width>
+      <height>781</height>
+     </rect>
+    </property>
+    <property name="minimumSize">
+     <size>
+      <width>1041</width>
+      <height>781</height>
+     </size>
+    </property>
+   </widget>
+   <widget class="QTabWidget" name="tabWidget">
+    <property name="geometry">
+     <rect>
+      <x>180</x>
+      <y>0</y>
+      <width>1041</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="mouseTracking">
+     <bool>true</bool>
+    </property>
+    <property name="acceptDrops">
+     <bool>true</bool>
+    </property>
+    <property name="toolTipDuration">
+     <number>0</number>
+    </property>
+    <property name="tabShape">
+     <enum>QTabWidget::Rounded</enum>
+    </property>
+    <property name="currentIndex">
+     <number>0</number>
+    </property>
+    <property name="tabsClosable">
+     <bool>true</bool>
+    </property>
+    <property name="movable">
+     <bool>true</bool>
+    </property>
+    <widget class="QWidget" name="Tab1">
+     <attribute name="title">
+      <string>Tab 1</string>
+     </attribute>
+    </widget>
+    <widget class="QWidget" name="Tab2">
+     <attribute name="title">
+      <string>Tab 2</string>
+     </attribute>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="verticalLayoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>181</width>
+      <height>811</height>
+     </rect>
+    </property>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <property name="spacing">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QPushButton" name="CountryCreatorButton">
+       <property name="text">
+        <string>Country Creator</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="FocusTreeDesignerButton_2">
+       <property name="mouseTracking">
+        <bool>false</bool>
+       </property>
+       <property name="text">
+        <string>Focus Tree Designer</string>
+       </property>
+       <property name="checkable">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="LocalizationButton">
+       <property name="text">
+        <string>Localization Tools</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="MapDesignerButton">
+       <property name="text">
+        <string>Map Designer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="TechTreeDesignerButton">
+       <property name="text">
+        <string>Tech Tree Designer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="DataStructureFunctionsButton">
+       <property name="text">
+        <string>Data Structure Functions</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="UIDesignerButton">
+       <property name="text">
+        <string>UI Designer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="PeaceConferenceDesignerButton">
+       <property name="text">
+        <string>Peace Conference Designer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="AchievementDesignerButton">
+       <property name="text">
+        <string>Achievements Designer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="AIButton">
+       <property name="text">
+        <string>AI Tools</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="PluginsButton">
+       <property name="text">
+        <string>Plugins</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1226</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFiel">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionLink_Arsenal_To_Mod_Folder"/>
+   </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionUndo"/>
+    <addaction name="actionRedo"/>
+   </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuTutorial">
+    <property name="title">
+     <string>Tutorial</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuSettings">
+    <property name="title">
+     <string>Settings</string>
+    </property>
+   </widget>
+   <addaction name="menuFiel"/>
+   <addaction name="menuEdit"/>
+   <addaction name="menuView"/>
+   <addaction name="menuHelp"/>
+   <addaction name="menuTutorial"/>
+   <addaction name="menuSettings"/>
+  </widget>
+  <action name="actionCountry_Creator_Help">
+   <property name="text">
+    <string>Country Creator Help</string>
+   </property>
+  </action>
+  <action name="actionFocus_Tree_Designer_Help">
+   <property name="text">
+    <string>Focus Tree Designer Help</string>
+   </property>
+  </action>
+  <action name="actionLocalization_Tools_Help">
+   <property name="text">
+    <string>Localization Tools Help</string>
+   </property>
+  </action>
+  <action name="actionMap_Designer_Help">
+   <property name="text">
+    <string>Map Designer Help</string>
+   </property>
+  </action>
+  <action name="actionTech_Tree_Designer_Help">
+   <property name="text">
+    <string>Tech Tree Designer Help</string>
+   </property>
+  </action>
+  <action name="actionUndo">
+   <property name="text">
+    <string>Undo</string>
+   </property>
+  </action>
+  <action name="actionRedo">
+   <property name="text">
+    <string>Redo</string>
+   </property>
+  </action>
+  <action name="actionLink_Arsenal_To_Mod_Folder">
+   <property name="text">
+    <string>Link Arsenal To Mod Folder</string>
+   </property>
+  </action>
+ </widget>
+ <tabstops>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>CountryCreatorButton</tabstop>
+  <tabstop>FocusTreeDesignerButton_2</tabstop>
+  <tabstop>DataStructureFunctionsButton</tabstop>
+  <tabstop>TechTreeDesignerButton</tabstop>
+  <tabstop>MapDesignerButton</tabstop>
+  <tabstop>LocalizationButton</tabstop>
+  <tabstop>PeaceConferenceDesignerButton</tabstop>
+  <tabstop>AchievementDesignerButton</tabstop>
+  <tabstop>AIButton</tabstop>
+  <tabstop>PluginsButton</tabstop>
+  <tabstop>UIDesignerButton</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>
