@@ -13,7 +13,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Create a QStackedWidget to hold the tool widgets
         self.stacked_widget = QtWidgets.QStackedWidget()
-        self.verticalLayout.addWidget(self.stacked_widget)
+        self.horizontalLayout.addWidget(self.stacked_widget)
 
 
         # Connect button signals to slots/functions
