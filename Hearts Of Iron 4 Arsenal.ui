@@ -26,22 +26,6 @@
      <height>812</height>
     </size>
    </property>
-   <widget class="QWidget" name="Viewport" native="true">
-    <property name="geometry">
-     <rect>
-      <x>180</x>
-      <y>30</y>
-      <width>1041</width>
-      <height>781</height>
-     </rect>
-    </property>
-    <property name="minimumSize">
-     <size>
-      <width>1041</width>
-      <height>781</height>
-     </size>
-    </property>
-   </widget>
    <widget class="QTabWidget" name="tabWidget">
     <property name="geometry">
      <rect>
@@ -180,6 +164,21 @@
       </widget>
      </item>
     </layout>
+   </widget>
+   <widget class="QStackedWidget" name="Viewport">
+    <property name="geometry">
+     <rect>
+      <x>190</x>
+      <y>30</y>
+      <width>1031</width>
+      <height>781</height>
+     </rect>
+    </property>
+    <property name="currentIndex">
+     <number>0</number>
+    </property>
+    <widget class="QWidget" name="page"/>
+    <widget class="QWidget" name="page_2"/>
    </widget>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
