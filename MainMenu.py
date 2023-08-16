@@ -11,51 +11,51 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.tabWidget.clear()
 
-        # Create a QStackedWidget to hold the tool widgets
-        self.stacked_widget = QtWidgets.QStackedWidget()
-        self.horizontalLayout.addWidget(self.stacked_widget)
+        # Load tool names from text file
+        with open('ToolList.txt', 'r') as file:
+            tool_names = [line.strip() for line in file]
 
+        # Generate tool buttons based on the loaded tool names
+        for tool_name in tool_names:
+            tool_button = QtWidgets.QPushButton(tool_name)
+            tool_button.clicked.connect(lambda _, btn=tool_button: self.openTool(btn))
+            self.verticalLayout.addWidget(tool_button)
 
-        # Connect button signals to slots/functions
-        self.CountryCreatorButton.clicked.connect(lambda: self.openTool(self.CountryCreatorButton))
-        self.FocusTreeDesignerButton_2.clicked.connect(lambda: self.openTool(self.FocusTreeDesignerButton_2))  # Button for FocusTreeTool
-        self.LocalizationButton.clicked.connect(lambda: self.openTool(self.LocalizationButton))
-        self.MapDesignerButton.clicked.connect(lambda: self.openTool(self.MapDesignerButton))
-        self.TechTreeDesignerButton.clicked.connect(lambda: self.openTool(self.TechTreeDesignerButton))
-        self.DataStructureFunctionsButton.clicked.connect(lambda: self.openTool(self.DataStructureFunctionsButton))
-        self.UIDesignerButton.clicked.connect(lambda: self.openTool(self.UIDesignerButton))
-        self.PeaceConferenceDesignerButton.clicked.connect(lambda: self.openTool(self.PeaceConferenceDesignerButton))
-        self.AchievementDesignerButton.clicked.connect(lambda: self.openTool(self.AchievementDesignerButton))
-        self.AIButton.clicked.connect(lambda: self.openTool(self.AIButton))
-        self.PluginsButton.clicked.connect(lambda: self.openTool(self.PluginsButton))
         self.tabWidget.tabCloseRequested.connect(self.closeTool)  # Connect the closeTool method to the tabCloseRequested signal
 
     def openTool(self, button):
         tool_name = button.text()
         print("Loading tool:", tool_name)
 
-        # Check if the tool is already open
-        if tool_name in self.tools:
-            # If already open, select its tool index
-            tool_index = self.tools[tool_name]
+        # Create a new instance of the tool widget
+        if tool_name == "Focus Tree Designer":  # Special case for FocusTreeTool
+            tool_widget = FocusTreeTool()
         else:
-            # If not open, create a new instance of the tool widget and add it to the stacked widget
-            if tool_name == "Focus Tree Designer":  # Special case for FocusTreeTool
-                tool_widget = FocusTreeTool()
-            else:
-                tool_widget = QtWidgets.QWidget()
-            tool_index = self.stacked_widget.addWidget(tool_widget)
-            self.tools[tool_name] = tool_index
+            tool_widget = QtWidgets.QWidget()
+
+        # Add the tool widget as a tab and store its index in the dictionary
+        tool_index = self.tabWidget.addTab(tool_widget, tool_name)
+
+        # Store the tool instance in a list instead of using a dictionary
+        if tool_name not in self.tools:
+            self.tools[tool_name] = []
+        self.tools[tool_name].append(tool_widget)
 
         # Switch to the selected tool index
-        self.stacked_widget.setCurrentIndex(tool_index)
+        self.tabWidget.setCurrentIndex(tool_index)
 
     def closeTool(self, index):
+        tool_widget = self.tabWidget.widget(index)
         tool_name = self.tabWidget.tabText(index)
         print("Closing tool:", tool_name)
-        tool_index = self.tools.pop(tool_name, None)
-        if tool_index is not None:
-            self.stacked_widget.removeWidget(self.stacked_widget.widget(tool_index))
+
+        # Remove the tool instance from the list
+        if tool_name in self.tools:
+            self.tools[tool_name].remove(tool_widget)
+            if len(self.tools[tool_name]) == 0:
+                del self.tools[tool_name]
+
+        # Remove the tab
         self.tabWidget.removeTab(index)
 
 def main():

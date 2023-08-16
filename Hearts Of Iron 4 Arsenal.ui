@@ -32,7 +32,7 @@
       <x>180</x>
       <y>0</y>
       <width>1041</width>
-      <height>31</height>
+      <height>831</height>
      </rect>
     </property>
     <property name="mouseTracking">
@@ -48,7 +48,7 @@
      <enum>QTabWidget::Rounded</enum>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>0</number>
     </property>
     <property name="tabsClosable">
      <bool>true</bool>
@@ -80,107 +80,6 @@
      <property name="spacing">
       <number>0</number>
      </property>
-     <item>
-      <widget class="QPushButton" name="CountryCreatorButton">
-       <property name="text">
-        <string>Country Creator</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="FocusTreeDesignerButton_2">
-       <property name="mouseTracking">
-        <bool>false</bool>
-       </property>
-       <property name="text">
-        <string>Focus Tree Designer</string>
-       </property>
-       <property name="checkable">
-        <bool>false</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="LocalizationButton">
-       <property name="text">
-        <string>Localization Tools</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="MapDesignerButton">
-       <property name="text">
-        <string>Map Designer</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="TechTreeDesignerButton">
-       <property name="text">
-        <string>Tech Tree Designer</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="DataStructureFunctionsButton">
-       <property name="text">
-        <string>Data Structure Functions</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="UIDesignerButton">
-       <property name="text">
-        <string>UI Designer</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="PeaceConferenceDesignerButton">
-       <property name="text">
-        <string>Peace Conference Designer</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="AchievementDesignerButton">
-       <property name="text">
-        <string>Achievements Designer</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="AIButton">
-       <property name="text">
-        <string>AI Tools</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="PluginsButton">
-       <property name="text">
-        <string>Plugins</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </widget>
-   <widget class="QWidget" name="horizontalLayoutWidget">
-    <property name="geometry">
-     <rect>
-      <x>180</x>
-      <y>30</y>
-      <width>1041</width>
-      <height>781</height>
-     </rect>
-    </property>
-    <layout class="QHBoxLayout" name="horizontalLayout">
-     <item>
-      <widget class="QStackedWidget" name="Viewport">
-       <widget class="QWidget" name="page"/>
-       <widget class="QWidget" name="page_2"/>
-      </widget>
-     </item>
     </layout>
    </widget>
   </widget>
@@ -277,17 +176,6 @@
  </widget>
  <tabstops>
   <tabstop>tabWidget</tabstop>
-  <tabstop>CountryCreatorButton</tabstop>
-  <tabstop>FocusTreeDesignerButton_2</tabstop>
-  <tabstop>DataStructureFunctionsButton</tabstop>
-  <tabstop>TechTreeDesignerButton</tabstop>
-  <tabstop>MapDesignerButton</tabstop>
-  <tabstop>LocalizationButton</tabstop>
-  <tabstop>PeaceConferenceDesignerButton</tabstop>
-  <tabstop>AchievementDesignerButton</tabstop>
-  <tabstop>AIButton</tabstop>
-  <tabstop>PluginsButton</tabstop>
-  <tabstop>UIDesignerButton</tabstop>
  </tabstops>
  <resources/>
  <connections/>
