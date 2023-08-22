@@ -5,12 +5,13 @@ from PyQt6.QtGui import QPen, QColor
 class FocusTreeTool(QWidget):
     def __init__(self):
         super().__init__()
-
+        
         layout = QVBoxLayout()
         self.viewport = Viewport()
         layout.addWidget(self.viewport)
+        # Create and set up the QGraphicsView
         self.setLayout(layout)
-
+        
 class Viewport(QGraphicsView):
     def __init__(self):
         super().__init__()
