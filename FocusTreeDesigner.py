@@ -56,6 +56,7 @@ class Viewport(QGraphicsView):
         # Variables to handle drag functionality
         self.last_mouse_pos = None
         self.setMouseTracking(True)
+        self.dragged_item = None
 
         # Store the zoom factor
         self.zoom_factor = 1.0
@@ -86,11 +87,23 @@ class Viewport(QGraphicsView):
         zoom_factor = 1.25 if zoom_in else 0.8
         self.zoom_factor *= zoom_factor
         self.scale(zoom_factor, zoom_factor)
-
+            
     def mousePressEvent(self, event):
-        self.last_mouse_pos = event.pos()
-
         if event.button() == Qt.MouseButton.LeftButton:
+            items_at_pos = self.items(event.pos())
+            if items_at_pos:
+                # Check if a defaultFocusNode instance is found
+                for item in items_at_pos:
+                    if isinstance(item, defaultFocusNode):
+                        self.dragged_item = item
+                        self.dragged_item_offset = item.pos() - QPointF(event.pos())
+                        return  # Exit early if a node is found
+            else:
+                # No node found, update last_mouse_pos for panning
+                self.last_mouse_pos = event.pos()
+
+        # Right-click behavior (creating a new node)
+        if event.button() == Qt.MouseButton.RightButton:
             self.createFocusNode(event.pos())
 
     def mouseMoveEvent(self, event):
@@ -100,8 +113,24 @@ class Viewport(QGraphicsView):
             self.translate(dx, dy)
             self.last_mouse_pos = event.pos()
 
+        if self.dragged_item is not None:
+            new_pos = (QPointF(event.pos()) / self.zoom_factor) + (QPointF(self.dragged_item_offset) / self.zoom_factor)
+            self.dragged_item.setPos(new_pos)
+
     def mouseReleaseEvent(self, event):
         self.last_mouse_pos = None
+        if self.dragged_item is not None:
+            self.dragged_item = None
+        else:
+            # Check if a node was just clicked (not dragged)
+            items_at_pos = self.items(event.pos())
+            if items_at_pos:
+                for item in items_at_pos:
+                    if isinstance(item, defaultFocusNode):
+                        # Select the clicked node
+                        item.setSelected(True)
+                        return
+
 
     def translate(self, dx, dy):
         # Helper method to perform translation while keeping the scene centered
