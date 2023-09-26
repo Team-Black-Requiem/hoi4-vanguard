@@ -18,9 +18,9 @@ class defaultFocusNode(QGraphicsItem):
     def __init__(self):
         super().__init__()
         self.rect = QRectF(-50, -25, 100, 50)  # Default size for the node
-        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)  # Correct flag name
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)  
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
-        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges)  # Updated flag
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges) 
         self.setZValue(1)  # Ensure nodes appear on top of the grid
 
     def boundingRect(self):
@@ -108,14 +108,17 @@ class Viewport(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         if self.last_mouse_pos is not None:
-            dx = (event.pos().x() - self.last_mouse_pos.x()) / self.zoom_factor
-            dy = (event.pos().y() - self.last_mouse_pos.y()) / self.zoom_factor
-            self.translate(dx, dy)
+            dx = event.pos().x() - self.last_mouse_pos.x()
+            dy = event.pos().y() - self.last_mouse_pos.y()
+            zoomed_dx = dx / self.zoom_factor
+            zoomed_dy = dy / self.zoom_factor
+            self.translate(zoomed_dx, zoomed_dy)
             self.last_mouse_pos = event.pos()
 
         if self.dragged_item is not None:
-            new_pos = (QPointF(event.pos()) / self.zoom_factor) + (QPointF(self.dragged_item_offset) / self.zoom_factor)
+            new_pos = self.mapToScene(event.pos())
             self.dragged_item.setPos(new_pos)
+
 
     def mouseReleaseEvent(self, event):
         self.last_mouse_pos = None
