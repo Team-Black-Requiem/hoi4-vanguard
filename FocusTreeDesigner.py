@@ -46,6 +46,9 @@ class Viewport(QGraphicsView):
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
         self.setSceneRect(-500, -500, 1000, 1000)
 
+        self.min_zoom_factor = 0.4
+        self.max_zoom_factor = 5.0
+
         # Disable the scrollbars and set the background color
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -85,8 +88,10 @@ class Viewport(QGraphicsView):
         # Enable zooming using the mouse wheel
         zoom_in = event.angleDelta().y() > 0
         zoom_factor = 1.25 if zoom_in else 0.8
-        self.zoom_factor *= zoom_factor
-        self.scale(zoom_factor, zoom_factor)
+        new_zoom = self.zoom_factor * zoom_factor
+        if self.min_zoom_factor <= new_zoom <= self.max_zoom_factor:
+            self.zoom_factor = new_zoom
+            self.scale(zoom_factor, zoom_factor)
             
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
