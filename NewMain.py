@@ -1,6 +1,6 @@
 from PyQt6 import QtWidgets, uic, QtCore
 import sys
-from FocusTreeDesigner import FocusTreeTool  # Import the FocusTreeTool class
+from FocusEditor.FocusTreeDesigner import FocusTreeTool  # Import the FocusTreeTool class
 from Tabbing import Tabbing
 
 class MainWindow(QtWidgets.QMainWindow):

@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QVBoxLayout, QWidget, QFrame
 from Editor import EditorWidget
 from PyQt6 import uic
-from FocusTreeDesigner import FocusTreeTool 
+from FocusEditor.FocusTreeDesigner import FocusTreeTool, FocusEditorUI
 
 class Tabbing(QWidget):
     def __init__(self, tab):
@@ -21,11 +21,23 @@ class Tabbing(QWidget):
         self.is_right_widget_visible = False # Track the toggle state
         
         self.setupEditorWidget()
+        self.setupEditorWidget2()
+        self.setupEditorWidget3()
         
     def setupEditorWidget(self):
         print("Setting up Editor Widget")
         self.editor_widget = EditorWidget()
         self.right_widget.layout().addWidget(self.editor_widget)
+
+    def setupEditorWidget2(self):
+        print("Setting up Editor Widget")
+        self.FocusEditorUI = FocusEditorUI()
+        self.right_widget.layout().addWidget(self.FocusEditorUI)
+
+    def setupEditorWidget3(self):
+        print("Setting up Editor Widget")
+        self.editor_widget2 = EditorWidget()
+        self.right_widget.layout().addWidget(self.editor_widget2)        
 
     def loadLeftWidget(self, var):
         if var == "Focus Tree Designer":

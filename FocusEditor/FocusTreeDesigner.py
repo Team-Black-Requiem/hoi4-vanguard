@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QGraphicsView, QGraphicsScene, QVBoxLayout, QGraphicsItem
 from PyQt6.QtCore import Qt, QPointF, QLineF, QRectF
 from PyQt6.QtGui import QPen, QColor, QPainter, QBrush 
+from PyQt6 import uic
 
 class FocusTreeTool(QWidget):
     def __init__(self):
@@ -11,6 +12,11 @@ class FocusTreeTool(QWidget):
         layout.addWidget(self.viewport)
         # Create and set up the QGraphicsView
         self.setLayout(layout)
+
+class FocusEditorUI(QWidget):
+    def __init__(self):
+        super().__init__()
+        uic.loadUi('FocusEditor/FocusEditor.ui', self)
 
     #### Begining of Focus Templates
 
