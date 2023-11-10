@@ -17,7 +17,9 @@ class FocusEditorUI(QWidget):
     def __init__(self):
         super().__init__()
         uic.loadUi('FocusEditor/FocusEditor.ui', self)
-
+        self.setFixedSize(600, 469)
+       
+       
     #### Begining of Focus Templates
 
 class defaultFocusNode(QGraphicsItem):

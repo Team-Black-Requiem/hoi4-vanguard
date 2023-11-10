@@ -20,9 +20,8 @@ class Tabbing(QWidget):
         self.toolButton.clicked.connect(self.toggleRightWidget)            
         self.is_right_widget_visible = False # Track the toggle state
         
-        self.setupEditorWidget()
         self.setupEditorWidget2()
-        self.setupEditorWidget3()
+        self.setupEditorWidget()
         
     def setupEditorWidget(self):
         print("Setting up Editor Widget")
@@ -32,12 +31,7 @@ class Tabbing(QWidget):
     def setupEditorWidget2(self):
         print("Setting up Editor Widget")
         self.FocusEditorUI = FocusEditorUI()
-        self.right_widget.layout().addWidget(self.FocusEditorUI)
-
-    def setupEditorWidget3(self):
-        print("Setting up Editor Widget")
-        self.editor_widget2 = EditorWidget()
-        self.right_widget.layout().addWidget(self.editor_widget2)        
+        self.right_widget.layout().addWidget(self.FocusEditorUI)      
 
     def loadLeftWidget(self, var):
         if var == "Focus Tree Designer":
