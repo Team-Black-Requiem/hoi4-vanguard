@@ -31,6 +31,15 @@ class defaultFocusNode(QGraphicsItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges) 
         self.setZValue(1)  # Ensure nodes appear on top of the grid
 
+        self.FocusName = ""
+        self.FocusDisc = ""
+        self.XLoc = 0
+        self.YLoc = 0
+        self.TimeToComplete = 0
+        self.GFX_IconRef = ""
+        
+
+
     def boundingRect(self):
         return self.rect
 
@@ -43,6 +52,18 @@ class defaultFocusNode(QGraphicsItem):
         painter.setPen(pen)
         painter.setBrush(QBrush(color))
         painter.drawRoundedRect(self.rect, 5, 5)
+
+    def mousePressEvent(self, event):
+        # Emit the signal when the node is clicked
+        self.nodeClicked.emit(
+        self.FocusName, 
+        self.FocusDisc, 
+        self.XLoc, 
+        self.YLoc, 
+        self.TimeToComplete, 
+        self.GFX_IconRef
+        )
+        super().mousePressEvent(event)
 
         ### End of Focus Templates
 
