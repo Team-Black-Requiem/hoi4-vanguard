@@ -64,7 +64,7 @@ class defaultFocusNode(QGraphicsItem):
         ### End of Focus Templates
 
 class Viewport(QGraphicsView):
-    nodeClicked = pyqtSignal(str, str, int, int, int, str)
+    nodeClicked = pyqtSignal(dict)
     
     def __init__(self):
         super().__init__()
@@ -159,23 +159,18 @@ class Viewport(QGraphicsView):
                             # Select the clicked node
                             item.setSelected(True)
 
-                            #Testing Statements Printed.
-                            print("Focus Name: " + item.FocusName)
-                            print("Focus Desc: " + item.FocusDisc)
-                            print("XLoc: " + str(item.XLoc))
-                            print("YLoc: " + str(item.YLoc))
-                            print("Time To Complete: " + str(item.TimeToComplete))
-                            print("GFX_IconReference: " + item.GFX_IconRef)
-
                             # Emit the signal with information from the clicked node
-                            self.nodeClicked.emit(
-                                item.FocusName,
-                                item.FocusDisc,
-                                item.XLoc,
-                                item.YLoc,
-                                item.TimeToComplete,
-                                item.GFX_IconRef
-                            )
+                            node_info = {
+                                "FocusName": item.FocusName,
+                                "FocusDisc": item.FocusDisc,
+                                "XLoc": item.XLoc,
+                                "YLoc": item.YLoc,
+                                "TimeToComplete": item.TimeToComplete,
+                                "GFX_IconRef": item.GFX_IconRef
+                            }
+                            self.nodeClicked.emit(node_info)
+
+
 
     def mouseMoveEvent(self, event):
         if self.dragged_item is not None:

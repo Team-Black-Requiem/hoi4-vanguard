@@ -2,12 +2,17 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QVBoxLayout, QWidget, QFrame
 from Editor import EditorWidget
 from PyQt6 import uic
 from FocusEditor.FocusTreeDesigner import FocusTreeTool, FocusEditorUI
+from FocusEditor.FocusTreeDesigner import Viewport
 
 class Tabbing(QWidget):
     def __init__(self, tab):
         super().__init__()
         self.tab = tab
         uic.loadUi('Tabbing.ui', self)
+
+        #Focus Tree Code Signal
+        self.viewport = Viewport()
+        self.viewport.nodeClicked.connect(self.updateUI)
 
         # Load the left widget UI into the left container
         self.left_container = self.findChild(QVBoxLayout, 'leftContainer')
@@ -47,3 +52,8 @@ class Tabbing(QWidget):
         # Toggle the visibility of the right widget
         self.is_right_widget_visible = not self.is_right_widget_visible
         self.right_widget.setVisible(self.is_right_widget_visible)
+
+    def updateUI(self, selected_node):
+        print("updateUI called")
+        print("Selected Node Information:")
+        print("Focus Name:", selected_node["FocusName"])

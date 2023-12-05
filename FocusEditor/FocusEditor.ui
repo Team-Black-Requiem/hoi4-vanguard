@@ -26,7 +26,7 @@
     <string>PushButton</string>
    </property>
   </widget>
-  <widget class="QTextEdit" name="textEdit">
+  <widget class="QTextEdit" name="FocusNameTxt">
    <property name="geometry">
     <rect>
      <x>0</x>
@@ -42,7 +42,7 @@
     <string>Focus Name</string>
    </property>
   </widget>
-  <widget class="QTextEdit" name="textEdit_2">
+  <widget class="QTextEdit" name="DescriptionTxt">
    <property name="geometry">
     <rect>
      <x>0</x>
@@ -58,7 +58,7 @@
     <string>Description'</string>
    </property>
   </widget>
-  <widget class="QTextEdit" name="textEdit_3">
+  <widget class="QTextEdit" name="Xlocation">
    <property name="geometry">
     <rect>
      <x>0</x>
@@ -84,7 +84,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <string>X Position</string>
    </property>
   </widget>
-  <widget class="QTextEdit" name="textEdit_4">
+  <widget class="QTextEdit" name="YLocation">
    <property name="geometry">
     <rect>
      <x>90</x>
@@ -251,7 +251,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <string>Mutually Exclusive</string>
    </property>
   </widget>
-  <widget class="QComboBox" name="comboBox">
+  <widget class="QComboBox" name="TimeToComplete">
    <property name="geometry">
     <rect>
      <x>200</x>
