@@ -3,6 +3,7 @@ from PyQt6.QtCore import Qt, QPointF, QLineF, QRectF
 from PyQt6.QtGui import QPen, QColor, QPainter, QBrush 
 from PyQt6 import uic
 from PyQt6.QtCore import pyqtSignal
+import random
 
 class FocusTreeTool(QWidget):
     def __init__(self):
@@ -52,7 +53,14 @@ class defaultFocusNode(QGraphicsItem):
         painter.setBrush(QBrush(color))
         painter.drawRoundedRect(self.rect, 5, 5)
 
-
+    def applyPreset(self, preset):
+                    # Apply the preset data to the node
+                    self.FocusName = preset.get("FocusName", "")
+                    self.FocusDisc = preset.get("FocusDisc", "")
+                    self.XLoc = preset.get("XLoc", 0)
+                    self.YLoc = preset.get("YLoc", 0)
+                    self.TimeToComplete = preset.get("TimeToComplete", 0)
+                    self.GFX_IconRef = preset.get("GFX_IconRef", "")
         ### End of Focus Templates
 
 class Viewport(QGraphicsView):
@@ -151,6 +159,14 @@ class Viewport(QGraphicsView):
                             # Select the clicked node
                             item.setSelected(True)
 
+                            #Testing Statements Printed.
+                            print("Focus Name: " + item.FocusName)
+                            print("Focus Desc: " + item.FocusDisc)
+                            print("XLoc: " + str(item.XLoc))
+                            print("YLoc: " + str(item.YLoc))
+                            print("Time To Complete: " + str(item.TimeToComplete))
+                            print("GFX_IconReference: " + item.GFX_IconRef)
+
                             # Emit the signal with information from the clicked node
                             self.nodeClicked.emit(
                                 item.FocusName,
@@ -198,3 +214,12 @@ class Viewport(QGraphicsView):
         focus_node.setPos(self.mapToScene(position))  # Convert viewport coordinates to scene coordinates
         self.scene().addItem(focus_node)
         self.nodes.append(focus_node)  # Store the created node for further processing
+        preset = self.choosePreset()
+        focus_node.applyPreset(preset)
+
+    def choosePreset(self):
+            presets = [
+                {"FocusName": "Introduction Focus", "FocusDisc": "This is the description for the first focus", "XLoc": 100, "YLoc": 200, "TimeToComplete": 14, "GFX_IconRef": "GFX_Icon_1"},
+                {"FocusName": "Preset2", "FocusDisc": "Description2", "XLoc": -50, "YLoc": 300, "TimeToComplete": 35, "GFX_IconRef": "GFX_Icon_2"},
+            ]
+            return random.choice(presets)
