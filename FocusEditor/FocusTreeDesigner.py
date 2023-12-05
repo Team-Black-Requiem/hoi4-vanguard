@@ -38,31 +38,6 @@ class defaultFocusNode(QGraphicsItem):
         self.YLoc = 0
         self.TimeToComplete = 0
         self.GFX_IconRef = ""
-
-    def mouseDoubleClickEvent(self, event):
-            if self.isSelected():
-                # Deselect the node
-                self.setSelected(False)
-            else:
-                # Deselect the currently selected node, if any
-                scene = self.scene()
-                selected_items = scene.selectedItems()
-                for item in selected_items:
-                    if isinstance(item, defaultFocusNode):
-                        item.setSelected(False)
-
-                # Select the clicked node
-                self.setSelected(True)
-
-                # Emit the signal with information from the clicked node
-                self.scene().views()[0].nodeClicked.emit(
-                    self.FocusName, 
-                    self.FocusDisc, 
-                    self.XLoc, 
-                    self.YLoc, 
-                    self.TimeToComplete, 
-                    self.GFX_IconRef
-                )
         
     def boundingRect(self):
         return self.rect
@@ -76,30 +51,6 @@ class defaultFocusNode(QGraphicsItem):
         painter.setPen(pen)
         painter.setBrush(QBrush(color))
         painter.drawRoundedRect(self.rect, 5, 5)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            items_at_pos = self.items(event.pos())
-            if not items_at_pos:
-                # No node found, deselect the currently selected node
-                scene = self.scene()
-                selected_items = scene.selectedItems()
-                for item in selected_items:
-                    if isinstance(item, defaultFocusNode):
-                        item.setSelected(False)
-                self.clearSelection()
-                
-                # Emit the signal only if no node is clicked
-                self.nodeClicked.emit(
-                    self.FocusName, 
-                    self.FocusDisc, 
-                    self.XLoc, 
-                    self.YLoc, 
-                    self.TimeToComplete, 
-                    self.GFX_IconRef
-                )
-
-        super().mousePressEvent(event)
 
 
         ### End of Focus Templates
@@ -179,33 +130,60 @@ class Viewport(QGraphicsView):
         if event.button() == Qt.MouseButton.RightButton:
             self.createFocusNode(event.pos())
 
-    def mouseMoveEvent(self, event):
-        if self.last_mouse_pos is not None:
-            dx = event.pos().x() - self.last_mouse_pos.x()
-            dy = event.pos().y() - self.last_mouse_pos.y()
-            zoomed_dx = dx / self.zoom_factor
-            zoomed_dy = dy / self.zoom_factor
-            self.translate(zoomed_dx, zoomed_dy)
-            self.last_mouse_pos = event.pos()
 
+    def mouseDoubleClickEvent(self, event):
+            items_at_pos = self.items(event.pos())
+            if items_at_pos:
+                # Check if a defaultFocusNode instance is found
+                for item in items_at_pos:
+                    if isinstance(item, defaultFocusNode):
+                        if item.isSelected():
+                            # Deselect the node
+                            item.setSelected(False)
+                        else:
+                            # Deselect the currently selected node, if any
+                            scene = self.scene()
+                            selected_items = scene.selectedItems()
+                            for selected_item in selected_items:
+                                if isinstance(selected_item, defaultFocusNode):
+                                    selected_item.setSelected(False)
+
+                            # Select the clicked node
+                            item.setSelected(True)
+
+                            # Emit the signal with information from the clicked node
+                            self.nodeClicked.emit(
+                                item.FocusName,
+                                item.FocusDisc,
+                                item.XLoc,
+                                item.YLoc,
+                                item.TimeToComplete,
+                                item.GFX_IconRef
+                            )
+
+    def mouseMoveEvent(self, event):
         if self.dragged_item is not None:
             new_pos = self.mapToScene(event.pos())
             self.dragged_item.setPos(new_pos)
-
+        else:
+            if self.last_mouse_pos is not None:
+                dx = event.pos().x() - self.last_mouse_pos.x()
+                dy = event.pos().y() - self.last_mouse_pos.y()
+                zoomed_dx = dx / self.zoom_factor
+                zoomed_dy = dy / self.zoom_factor
+                self.translate(zoomed_dx, zoomed_dy)
+                self.last_mouse_pos = event.pos()
 
     def mouseReleaseEvent(self, event):
         self.last_mouse_pos = None
         if self.dragged_item is not None:
             self.dragged_item = None
         elif event.button() == Qt.MouseButton.LeftButton:
-            # Check if a node was just clicked (not dragged)
             items_at_pos = self.items(event.pos())
-            if items_at_pos:
-                for item in items_at_pos:
-                    if isinstance(item, defaultFocusNode):
-                        # Select the clicked node
-                        item.setSelected(True)
-                        return
+            selected_items = self.scene().selectedItems()
+            for item in selected_items:
+                if isinstance(item, defaultFocusNode) and item not in items_at_pos:
+                    item.setSelected(False)
 
 
     def translate(self, dx, dy):
