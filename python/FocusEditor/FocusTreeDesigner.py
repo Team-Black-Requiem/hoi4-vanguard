@@ -18,7 +18,7 @@ class FocusTreeTool(QWidget):
 class FocusEditorUI(QWidget):
     def __init__(self):
         super().__init__()
-        uic.loadUi('FocusEditor/FocusEditor.ui', self)
+        uic.loadUi('python/FocusEditor/FocusEditor.ui', self)
         self.setFixedSize(600, 469)
        
        

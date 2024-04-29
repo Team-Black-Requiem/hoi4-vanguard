@@ -8,7 +8,7 @@ class Tabbing(QWidget):
     def __init__(self, tab):
         super().__init__()
         self.tab = tab
-        uic.loadUi('Tabbing.ui', self)
+        uic.loadUi('python/Tabbing.ui', self)
 
         #Focus Tree Code Signal
         self.viewport = Viewport()

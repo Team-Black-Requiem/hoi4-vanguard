@@ -6,7 +6,7 @@ from Tabbing import Tabbing
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
-        uic.loadUi('Hearts Of Iron 4 Arsenal.ui', self)
+        uic.loadUi('python/Hearts Of Iron 4 Arsenal.ui', self)
 
         self.tools = {}  # Dictionary to store open tools
 
