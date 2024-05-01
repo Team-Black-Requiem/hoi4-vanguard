@@ -5,6 +5,8 @@ use std::error::Error;
 pub(crate) enum DirectoryError {
     NotFound,
     InvalidPath,
+    NotAFile,
+    NotADirectory,
 }
 
 impl std::fmt::Display for DirectoryError {
@@ -12,6 +14,8 @@ impl std::fmt::Display for DirectoryError {
         match *self {
             DirectoryError::NotFound => write!(f, "File or directory not found"),
             DirectoryError::InvalidPath => write!(f, "Invalid path"),
+            DirectoryError::NotAFile => write!(f, "Path is not a valid file"),
+            DirectoryError::NotADirectory => write!(f, "Path is not a valid directory"),
         }
     }
 }

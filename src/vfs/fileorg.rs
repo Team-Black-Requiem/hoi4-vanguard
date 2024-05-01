@@ -14,21 +14,22 @@ use crate::SkipRule;
 #[derive(Debug, Clone)]
 pub enum FileCategory {
     Text,
-    GUI,
-    GFX,
-    SFX,
+    Gui,
+    Gfx,
+    Sfx,
     Asset,
     Map,
-    YAML,
-    CSV,
+    Yaml,
+    Csv,
     Image,
     Shader,
     Lua,
     Mesh,
     Font,
     Sound,
-    Dot_Mod,
+    Mod,
     Other,
+    Dir
 }
 
 impl FileCategory {
@@ -36,25 +37,25 @@ impl FileCategory {
         if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
             match extension.to_lowercase().as_str() {
                 "txt" => FileCategory::Text,
-                "gui" => FileCategory::GUI,
-                "gfx" => FileCategory::GFX,
+                "gui" => FileCategory::Gui,
+                "gfx" => FileCategory::Gfx,
                 "dds" | "tga" | "png" => FileCategory::Image,
-                "yml" => FileCategory::YAML,
-                "csv" => FileCategory::CSV,
+                "yml" => FileCategory::Yaml,
+                "csv" => FileCategory::Csv,
                 "lua" => FileCategory::Lua,
                 "shader" => FileCategory::Shader,
                 "asset" => FileCategory::Asset,
                 "mesh" => FileCategory::Mesh,
-                "sfx" => FileCategory::SFX,
+                "sfx" => FileCategory::Sfx,
                 "wav" | "ogg" => FileCategory::Sound,
                 "ttf" | "otf" => FileCategory::Font,
                 "map" => FileCategory::Map,
-                "mod" => FileCategory::Dot_Mod,
+                "mod" => FileCategory::Mod,
                 _ => FileCategory::Other,
             }
-        } else {
-            FileCategory::Other
-        }
+        } else if path.is_file() {
+            FileCategory::Other     //extensionless file
+        } else {FileCategory::Dir}  //dir = error
     }
 }
 

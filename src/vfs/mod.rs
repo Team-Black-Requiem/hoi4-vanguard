@@ -1,11 +1,9 @@
 //vfs module file
-use std::path::Path;
+pub(crate) mod error;
 
 pub(crate) mod filesystem;
-pub(crate) mod error;
-pub mod in_memory;
-pub mod unionfs;
-pub mod fileorg;
+pub(crate) mod in_memory;
+pub(crate) mod unionfs;
+pub(crate) mod fileorg;
 
-pub mod scanner;
-
+pub(crate) mod scanner;

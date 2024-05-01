@@ -1,9 +1,16 @@
-use std::{path::{Path, PathBuf}, time::Instant};
+use std::{fs::File, io::Write, path::{Path, PathBuf}, time::Instant};
 
 use flexi_logger::{Logger, FileSpec, Duplicate};
 
 mod vfs;
-use crate::vfs::{filesystem::*, in_memory::Directory, scanner, unionfs::UnionFileSystem};
+use crate::vfs::{filesystem::*, unionfs::*, scanner};
+
+
+fn write_data_to_file(data: &[u8], filename: &str) -> std::io::Result<()> {
+    let mut file = File::create(filename)?;
+    file.write_all(data)?;
+    Ok(())
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logger with console output and log file
@@ -12,110 +19,79 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .duplicate_to_stderr(Duplicate::Info)  
         .format_for_files(flexi_logger::colored_with_thread)
         .start()?;
-
-
-    // Create an in-memory filesystem
-    let mut in_memory_fs = Directory::new();
-    in_memory_fs.add_file("file1.txt", b"Hello, World!".to_vec());
-    in_memory_fs.add_directory(Path::new("dir1"));
-    in_memory_fs.add_file("dir1/file2.txt", b"Goodbye, World!".to_vec());
-    in_memory_fs.add_file("dir1/file3.txt", b"Goodbye, World!".to_vec());
-    in_memory_fs.add_directory("/dir2");
-
-    let mut in_memory_fs_2 = Directory::new();
-    in_memory_fs_2.add_file("file1.txt", b"Hello, World 2!".to_vec());
-    in_memory_fs_2.add_directory(Path::new("dir1"));
-    in_memory_fs_2.add_directory("dir1/dir2");
-    in_memory_fs_2.add_file("dir1/dir2/file4.txt", b"Goodbye, World!".to_vec());
-
-    
-
-    // Create the hierarchical union VFS
-    let mut vfs_test = UnionFileSystem::new();
-    vfs_test.add_layer(Box::new(in_memory_fs),"new_layer");
-    vfs_test.add_layer(Box::new(in_memory_fs_2), "new_layer2");
-
-    // Test reading a file
-    match vfs_test.read_file(Path::new("dir1/dir2/file4.txt")) {     
-        Ok(data) => log::info!("File content: {:?}", String::from_utf8_lossy(&data)),
-        Err(err) => log::info!("Error reading file: {:?}", err),
-    }
-
-    // Example usage: get file metadata
-    let (size, category) = vfs_test.file_metadata(Path::new("file1.txt"))?;
-    log::info!("File size: {} bytes", size);
-    log::info!("File category: {:?}", category);
-
-    // Test listing directory contents
-    match vfs_test.list_directory(Path::new("dir1")) {
-        Ok(contents) => log::info!("Directory contents: {:?}", contents),
-        Err(err) => log::info!("Error listing directory: {:?}", err),
-    }
-
-    // Test listing nested directory contents
-    match vfs_test.list_directory(Path::new("dir1/dir2")) {
-        Ok(contents) => log::info!("Directory contents: {:?}", contents),
-        Err(err) => log::info!("Error listing directory: {:?}", err),
-    }
-
-    // Test listing directory contents for a directory that doesn't exist
-    match vfs_test.list_directory(Path::new("nonexistent_dir")) {
-        Ok(contents) => log::info!("Directory contents: {:?}", contents),
-        Err(err) => log::info!("Error listing directory: {:?}", err),
-    }
-
-    log::info!("Scanning VFS {:?}", vfs_test);
-
-    println!("Done");
-
-
-
     
     let mut vfs = UnionFileSystem::new();
     let base_game_path = scanner::get_base_game_path()?;
     let ignore_list = vec!["EmptySteamDepot", "tbb.dll", "pdx_browser", "pdx_launcher", "tools", "wiki", "launcher-assets", "crash_reporter", "_CommonRedist", "browser", "cef", "Documents", "PDXBrowser_IPC.dll", "ThirdPartyLicenses.txt"];
+    let start_time = Instant::now();
     vfs.add_layer(Box::new(scanner::scan_directory(&base_game_path, &ignore_list).expect("Failed to scan directory for VFS setup")), base_game_path);
-    
-    match vfs.list_directory(Path::new("common")) {
+    log::info!("Scanned in {:?}", start_time.elapsed());
+
+    match vfs.read_dir(Path::new("common")) {
         Ok(contents) => log::info!("Directory contents: {:?}", contents),
         Err(err) => log::info!("Error listing directory: {:?}", err),
     }
-    // Test reading a file
-    let node_start_time = Instant::now();
+    // Test reading a file and writing it to a file
+    let start_time = Instant::now();
     match vfs.read_file(Path::new("common/script_enums.txt")) {     
         Ok(data) => {
-            log::info!("Test Node found in {:?}", node_start_time.elapsed());
-            log::info!("File content: {:?}", String::from_utf8_lossy(&data))},
+            log::info!("Test Node found in {:?}", start_time.elapsed());
+            if let Err(err) = write_data_to_file(&data, "output_file.txt") {
+                log::error!("Error writing to file: {:?}", err);
+            } else {
+                log::info!("Data successfully written to file.");
+            }
+        },
         Err(err) => log::info!("Error reading file: {:?}", err),
     }
     // Example usage: get file metadata
-    let node_start_time = Instant::now();
+    let start_time = Instant::now();
     let (size, category) = vfs.file_metadata(Path::new("common/script_enums.txt"))?;
-    log::info!("Test Node found in {:?}", node_start_time.elapsed());
+    log::info!("Test Node found in {:?}", start_time.elapsed());
     log::info!("File size: {} bytes", size);
     log::info!("File category: {:?}", category);
 
 
     let mod_path = Path::new("c:/users/afrey/documents/github/cg-black-requiem");
     let mod_ignore_list = vec![".vscode", ".gitattributes", ".git", ".gitignore", "tbb.dll", "pdx_browser", "pdx_launcher", "tools", "wiki", "launcher-assets", "crash_reporter", "_CommonRedist", "browser", "cef", "Documents", "PDXBrowser_IPC.dll", "ThirdPartyLicenses.txt"];
+    let start_time = Instant::now();
     vfs.add_layer(Box::new(scanner::scan_directory(mod_path, &mod_ignore_list).expect("Failed to scan directory for VFS setup")), mod_path);
+    log::info!("Scanned in {:?}", start_time.elapsed());
 
-
-    match vfs.list_directory(Path::new("common/decisions")) {
+    match vfs.read_dir(Path::new("common/decisions")) {
         Ok(contents) => log::info!("Directory contents: {:?}", contents),
         Err(err) => log::info!("Error listing directory: {:?}", err),
     }
 
-    match vfs.list_directory(Path::new("common/decisions/categories")) {
+    match vfs.read_dir(Path::new("common/decisions/categories")) {
         Ok(contents) => log::info!("Directory contents: {:?}", contents),
         Err(err) => log::info!("Error listing directory: {:?}", err),
     }
 
+    match vfs.read_dir(Path::new("gfx")) {
+        Ok(contents) => log::info!("Directory contents: {:?}", contents),
+        Err(err) => log::info!("Error listing directory: {:?}", err),
+    }
+
+
+    // Test reading a file and writing it to a file
+    let start_time = Instant::now();
+    match vfs.read_file(Path::new("common/script_enums.txt")) {     
+        Ok(data) => {
+            log::info!("Test Node found in {:?}", start_time.elapsed());
+            if let Err(err) = write_data_to_file(&data, "output_file2.txt") {
+                log::error!("Error writing to file: {:?}", err);
+            } else {
+                log::info!("Data successfully written to file.");
+            }
+        },
+        Err(err) => log::info!("Error reading file: {:?}", err),
+    }
 
     // Example usage: get file metadata
-    let node_start_time = Instant::now();
+    let start_time = Instant::now();
     let (size, category) = vfs.file_metadata(Path::new("common/national_focus/area.txt"))?;
-    log::info!("Test Node found in {:?}", node_start_time.elapsed());
+    log::info!("Test Node found in {:?}", start_time.elapsed());
     log::info!("File size: {} bytes", size);
     log::info!("File category: {:?}", category);
 

@@ -12,4 +12,5 @@ classifiers = [
 ]
 dynamic = ["version"]
 [tool.maturin]
+module-name = "arsenal.vanguard"
 features = ["pyo3/extension-module"]

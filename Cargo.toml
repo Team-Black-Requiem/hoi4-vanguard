@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 debug = true
 
 [dependencies]
-pyo3 = "0.20.0"
+pyo3 = "0.21.2"
 
 # Utilities
 regex = "1.10.4"

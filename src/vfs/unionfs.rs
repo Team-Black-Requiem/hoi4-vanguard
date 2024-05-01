@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::{filesystem::*, fileorg::{FileCategory, parse_mod_file}};
 
+
 // Define the UnionFileSystem struct
 #[derive(Debug)]
 pub(crate) struct UnionFileSystem {
@@ -27,11 +28,7 @@ impl UnionFileSystem {
         self.load_order.push(index);
     
         let path = path.into();
-        let mut mod_file_path = path.join("descriptor.mod");
-
-        if let Some(path_str) = mod_file_path.to_str().map(|s| s.replace('\\', "/")) {
-            mod_file_path = PathBuf::from(path_str);
-        }
+        let mod_file_path = path.join("descriptor.mod");
     
         let skip_rules = parse_mod_file(&mod_file_path, index);
         for rule in skip_rules {
@@ -55,11 +52,17 @@ impl UnionFileSystem {
         false
     }
 
+    //these might be a little chunky for getting a bool, so we'll look at setting up a better solution
     pub fn is_directory(&self, path: &Path) -> bool {
-        self.list_directory(path).is_ok()
+        self.read_dir(path).is_ok()
+    }
+
+    pub fn is_file(&self, path: &Path) -> bool {
+        self.read_file(path).is_ok()
     }
 
 }
+
 
 impl FileSystem for UnionFileSystem {
 
@@ -78,10 +81,10 @@ impl FileSystem for UnionFileSystem {
         )))
     }
 
-    fn list_directory(&self, path: &Path) -> Result<Vec<PathBuf>, Box<dyn Error>> {
+    fn read_dir(&self, path: &Path) -> Result<Vec<PathBuf>, Box<dyn Error>> {
         let mut contents = Vec::new();
         for (index, layer) in self.layers.iter().enumerate().rev() {
-            if let Ok(layer_contents) = layer.list_directory(path) {
+            if let Ok(layer_contents) = layer.read_dir(path) {
                 // Calculate the current layer based on the depth in the filesystem hierarchy
                 let current_layer = self.layers.len() - index - 1;
                 for file in layer_contents {

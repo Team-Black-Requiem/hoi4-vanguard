@@ -3,10 +3,12 @@ import sys
 from FocusEditor.FocusTreeDesigner import FocusTreeTool  # Import the FocusTreeTool class
 from Tabbing import Tabbing
 
+import vanguard # Import the vanguard module from rust bindings. Ignore the warning.
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
-        uic.loadUi('python/Hearts Of Iron 4 Arsenal.ui', self)
+        uic.loadUi('arsenal/Hearts Of Iron 4 Arsenal.ui', self)
 
         self.tools = {}  # Dictionary to store open tools
 
@@ -62,12 +64,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabWidget.removeTab(index)
 
 def main():
+    
+    print(vanguard.sum_as_string(5, 2)) # Now we cooking with gas. Rust is here!
+    
     if hasattr(QtCore.Qt, 'AA_EnableHighDpiScaling'):
         QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
     if hasattr(QtCore.Qt, 'AA_UseHighDpiPixmaps'):
         QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+    sys.argv += ['-platform', 'windows:darkmode=2']
+    
     app = QtWidgets.QApplication(sys.argv)
     QtWidgets.QApplication.setStyle("Fusion") #default stylesheet hurrdurr
+
+    
     main = MainWindow()
     main.show()
     sys.exit(app.exec())

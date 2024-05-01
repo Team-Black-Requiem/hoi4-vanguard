@@ -12,7 +12,7 @@ use super::{error::DirectoryError, filesystem::FileSystem, fileorg::FileCategory
 pub(crate) struct Directory {
     files: HashMap<u64, Vec<u8>>,
     directories: HashMap<u64, HashSet<u64>>,
-    path_mappings: HashMap<PathBuf, u64>,
+    pub path_mappings: HashMap<PathBuf, u64>,
 }
 
 impl Directory {
@@ -104,7 +104,7 @@ impl FileSystem for Directory {
         }
     }
 
-    fn list_directory(&self, path: &Path) -> Result<Vec<PathBuf>, Box<dyn Error>> {
+    fn read_dir(&self, path: &Path) -> Result<Vec<PathBuf>, Box<dyn Error>> {
         let id = self.resolve_path(path)?;
         if let Some(contents) = self.directories.get(&id) {
             let mut result = Vec::new();
@@ -123,7 +123,6 @@ impl FileSystem for Directory {
         let id = self.resolve_path(path)?;
         if let Some(data) = self.files.get(&id) {
             let size = data.len() as u64;
-            // You need to implement FileCategory::categorize_file_extension(Path) method
             let category = FileCategory::categorize_file_extension(path);
             Ok((size, category))
         } else {

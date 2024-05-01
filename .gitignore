@@ -1,1 +1,6 @@
+pyvenv.cfg
 /target
+/Scripts
+/Lib
+arsenal/__pycache__/
+arsenal/FocusEditor/__pycache__/
