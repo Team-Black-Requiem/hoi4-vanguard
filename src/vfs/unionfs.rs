@@ -1,19 +1,26 @@
+use std::collections::HashSet;
 use std::error::Error;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use super::{filesystem::*, fileorg::{FileCategory, parse_mod_file}};
+use pyo3::prelude::*;
+
+use super::in_memory::Directory;
+use super::filesystem::*;
 
 
 // Define the UnionFileSystem struct
+#[pyclass]
 #[derive(Debug)]
 pub(crate) struct UnionFileSystem {
-    layers: Vec<Box<dyn FileSystem>>,
+    layers: Vec<Directory>, // Box<dyn FileSystem> is also possible, but it's not supported by pyo3 and we don't need it
     load_order: Vec<usize>,
     skip_rules: Vec<SkipRule>,
 }
 
+#[pymethods]
 impl UnionFileSystem {
+    #[new]
     pub fn new() -> Self {
         Self {
             layers: Vec::new(),
@@ -22,7 +29,19 @@ impl UnionFileSystem {
         }
     }
 
-    pub fn add_layer<P: Into<PathBuf>>(&mut self, layer: Box<dyn FileSystem>, path: P) {
+    //pub fn new_layer(&mut self, path: PathBuf, ignore_list: Vec<String>) {
+    //    UnionFileSystem::add_layer(
+    //        self,
+    //        super::scanner::scan_directory(
+    //            &path,
+    //            &ignore_list
+    //        ).expect("Failed to scan directory for VFS setup"), path
+    //    );
+    //}
+}
+
+impl UnionFileSystem {
+    pub fn add_layer<P: Into<PathBuf>>(&mut self, layer: Directory, path: P) {
         self.layers.push(layer);
         let index = self.layers.len() - 1;
         self.load_order.push(index);
@@ -52,7 +71,7 @@ impl UnionFileSystem {
         false
     }
 
-    //these might be a little chunky for getting a bool, so we'll look at setting up a better solution
+    //these might be a little chunky for getting a bool, as we're essentially reading a file and then discarding the contents for an OK/Fail
     pub fn is_directory(&self, path: &Path) -> bool {
         self.read_dir(path).is_ok()
     }
@@ -81,21 +100,20 @@ impl FileSystem for UnionFileSystem {
         )))
     }
 
-    fn read_dir(&self, path: &Path) -> Result<Vec<PathBuf>, Box<dyn Error>> {
-        let mut contents = Vec::new();
+    fn read_dir(&self, path: &Path) -> Result<HashSet<PathBuf>, Box<dyn Error>> {
+        let mut result = std::collections::HashSet::new();
         for (index, layer) in self.layers.iter().enumerate().rev() {
             if let Ok(layer_contents) = layer.read_dir(path) {
-                // Calculate the current layer based on the depth in the filesystem hierarchy
                 let current_layer = self.layers.len() - index - 1;
                 for file in layer_contents {
                     if self.skip_dir(current_layer, &file) {
                         continue;
                     }
-                    contents.push(file);
+                    result.insert(file);
                 }
             }
         }
-        Ok(contents)
+        Ok(result)
     }
 
     fn file_metadata(&self, path: &Path) -> Result<(u64, FileCategory), Box<dyn Error>> {

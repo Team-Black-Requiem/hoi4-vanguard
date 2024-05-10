@@ -1,5 +1,8 @@
 use pyo3::prelude::*;
 
+mod vfs;
+use crate::vfs::{filesystem::*, unionfs::*, scanner};
+
 //This is the file that defines functions exposed to Python via the internal vanguard module.
 //It is not intended to be used directly by the end user and is meant to facilitate the creation of an extensable frontend for Arsenal.
 
@@ -16,7 +19,7 @@ If this sequence is properly observed the engines may be brought to full activat
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn vanguard(_py: Python, m: &PyModule) -> PyResult<()> {
+fn vanguard(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     Ok(())
 }

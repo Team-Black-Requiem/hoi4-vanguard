@@ -6,14 +6,15 @@ use std::{
 };
 use xxhash_rust::xxh3::xxh3_64;
 
-use super::{error::DirectoryError, filesystem::FileSystem, fileorg::FileCategory};
+use super::filesystem::*;
 
 #[derive(Debug)]
 pub(crate) struct Directory {
     files: HashMap<u64, Vec<u8>>,
     directories: HashMap<u64, HashSet<u64>>,
-    pub path_mappings: HashMap<PathBuf, u64>,
+    path_mappings: HashMap<PathBuf, u64>,
 }
+
 
 impl Directory {
     pub fn new() -> Self {
@@ -104,13 +105,13 @@ impl FileSystem for Directory {
         }
     }
 
-    fn read_dir(&self, path: &Path) -> Result<Vec<PathBuf>, Box<dyn Error>> {
+    fn read_dir(&self, path: &Path) -> Result<HashSet<PathBuf>, Box<dyn Error>> {
         let id = self.resolve_path(path)?;
         if let Some(contents) = self.directories.get(&id) {
-            let mut result = Vec::new();
+            let mut result = HashSet::new();
             for &child_id in contents {
                 if let Some(child_path) = self.path_mappings.iter().find_map(|(p, &i)| if i == child_id { Some(p.clone()) } else { None }) {
-                    result.push(child_path);
+                    result.insert(child_path);
                 }
             }
             Ok(result)
