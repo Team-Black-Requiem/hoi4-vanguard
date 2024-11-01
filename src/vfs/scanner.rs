@@ -5,6 +5,8 @@ use std::{
     fs::File,
     };
 
+
+use rayon::prelude::*;
 use jwalk::WalkDir;
 use native_dialog::FileDialog;
 extern crate winreg;
@@ -13,14 +15,8 @@ use winreg::{RegKey, enums::*};
 use super::in_memory::Directory;
 use super::filesystem::FileCategory;
 
-const SIMULATE_REGISTRY_FAILURE: bool = false;  // For Debugging: Set this to true to simulate a failure to find the registry key
-
     #[cfg(target_os = "windows")]                                    //acquire steam install from windows registry. ( ͡° ͜ʖ ͡°)
     fn find_hoi4_installation_path() -> Option<PathBuf> {            //perfomance is basically free but assumes that most people will have a valid hoi4 directory in the same location as steam.
-
-        if SIMULATE_REGISTRY_FAILURE {
-            return None;
-        }
 
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let steam_key = hkcu.open_subkey_with_flags("SOFTWARE\\Valve\\Steam", KEY_READ).ok()?;
@@ -39,7 +35,6 @@ const SIMULATE_REGISTRY_FAILURE: bool = false;  // For Debugging: Set this to tr
         } else {
             None
         }
-
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -94,14 +89,14 @@ const SIMULATE_REGISTRY_FAILURE: bool = false;  // For Debugging: Set this to tr
         }
     }
 
-    pub(crate) fn scan_directory(path: &Path, exclude_criteria: &[&str]) -> Result<Directory, Box<dyn std::error::Error>> {
+    pub(crate) fn scan_directory(path: &Path, exclude_criteria: &[String]) -> Result<Directory, Box<dyn std::error::Error>> {
         log::info!("Scanning directory: {}", path.display());
-        let mut layer = Directory::new();
+        let mut layer = Directory::new();        
         for entry in WalkDir::new(path).follow_links(true).into_iter().filter_map(|e| e.ok()) {
             let entry_path = entry.path();
             let relative_path = entry_path.strip_prefix(path)?;
             // Check if the entry path should be excluded
-            if exclude_criteria.iter().any(|&excluded| relative_path.starts_with(excluded)) {
+            if exclude_criteria.iter().any(|excluded| relative_path.starts_with(excluded)) {
                 //log::info!("Excluding: {}", entry_path.display());
                 continue;
             }

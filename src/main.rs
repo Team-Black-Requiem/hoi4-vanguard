@@ -3,7 +3,7 @@ use std::{fs::File, io::Write, path::{Path, PathBuf}, time::Instant};
 use flexi_logger::{Logger, FileSpec, Duplicate};
 
 mod vfs;
-use crate::vfs::{filesystem::*, unionfs::*, scanner};
+use crate::vfs::{unionfs::*, scanner};
 
 
 fn write_data_to_file(data: &[u8], filename: &str) -> std::io::Result<()> {
@@ -20,21 +20,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .format_for_files(flexi_logger::colored_with_thread)
         .start()?;
     
-    let mut vfs = UnionFileSystem::new();
+    let mut vfs = Vfs::new();
     let base_game_path = scanner::get_base_game_path()?;
-    let ignore_list = vec!["dowser.exe", "tbb.dll", "tbb_debug.dll", "nakama-cpp.dll", "pops_api.dll", "steam_api64.dll", "PDXBrowser_IPC.dll", "ThirdPartyLicenses.txt", "launcher-settings.json", "EmptySteamDepot", "pdx_browser", "pdx_launcher", "tools", "wiki", "launcher-assets", "crash_reporter", "_CommonRedist", "browser", "cef", "Documents"];
-    
+    let ignore_list = vec!["dowser.exe".to_string(), "tbb.dll".to_string(), "tbb_debug.dll".to_string(), "nakama-cpp.dll".to_string(), "pops_api.dll".to_string(), "steam_api64.dll".to_string(), "PDXBrowser_IPC.dll".to_string(), "ThirdPartyLicenses.txt".to_string(), "launcher-settings.json".to_string(), "EmptySteamDepot".to_string(), "pdx_browser".to_string(), "pdx_launcher".to_string(), "tools".to_string(), "wiki".to_string(), "launcher-assets".to_string(), "crash_reporter".to_string(), "_CommonRedist".to_string(), "browser".to_string(), "cef".to_string(), "Documents".to_string()];
+
     let start_time = Instant::now();
-    vfs.add_layer(scanner::scan_directory(&base_game_path, &ignore_list).expect("Failed to scan directory for VFS setup"), base_game_path);
+    vfs.add_layer(scanner::scan_directory(&base_game_path, &ignore_list).expect("Failed to scan directory for vfs setup"), base_game_path);
     log::info!("Scanned in {:?}", start_time.elapsed());
 
-    match vfs.read_dir(Path::new("common")) {
+    match vfs.read_dir(PathBuf::from("common")) {
         Ok(contents) => log::info!("Directory contents: {:?}", contents),
         Err(err) => log::info!("Error listing directory: {:?}", err),
     }
     // Test reading a file and writing it to a file
     let start_time = Instant::now();
-    match vfs.read_file(Path::new("common/script_enums.txt")) {     
+    match vfs.read_file(PathBuf::from("common/script_enums.txt")) {     
         Ok(data) => {
             log::info!("Test Node found in {:?}", start_time.elapsed());
             if let Err(err) = write_data_to_file(&data, "output_file.txt") {
@@ -47,36 +47,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // Example usage: get file metadata
     let start_time = Instant::now();
-    let (size, category) = vfs.file_metadata(Path::new("common/script_enums.txt"))?;
+    let (size, category) = vfs.file_metadata(PathBuf::from("common/script_enums.txt"))?;
     log::info!("Test Node found in {:?}", start_time.elapsed());
     log::info!("File size: {} bytes", size);
     log::info!("File category: {:?}", category);
 
 
     let mod_path = Path::new("c:/users/afrey/documents/github/cg-black-requiem");
-    let mod_ignore_list = vec![".vscode", ".gitattributes", ".git", ".gitignore"];
+    let mod_ignore_list = vec![".vscode".to_string(), ".gitattributes".to_string(), ".git".to_string(), ".gitignore".to_string()];
     let start_time = Instant::now();
-    vfs.add_layer(scanner::scan_directory(mod_path, &mod_ignore_list).expect("Failed to scan directory for VFS setup"), mod_path);
+    vfs.add_layer(scanner::scan_directory(mod_path, &mod_ignore_list).expect("Failed to scan directory for vfs setup"), mod_path.to_path_buf());
     log::info!("Scanned in {:?}", start_time.elapsed());
 
-    match vfs.read_dir(Path::new("common/decisions")) {
+    match vfs.read_dir(PathBuf::from("common/decisions")) {
         Ok(contents) => log::info!("Directory contents: {:?}", contents),
         Err(err) => log::info!("Error listing directory: {:?}", err),
     }
 
-    match vfs.read_dir(Path::new("common/decisions/categories")) {
+    match vfs.read_dir(PathBuf::from("common/decisions/categories")) {
         Ok(contents) => log::info!("Directory contents: {:?}", contents),
         Err(err) => log::info!("Error listing directory: {:?}", err),
     }
 
-    match vfs.read_dir(Path::new("gfx")) {
+    match vfs.read_dir(PathBuf::from("gfx")) {
         Ok(contents) => log::info!("Directory contents: {:?}", contents),
         Err(err) => log::info!("Error listing directory: {:?}", err),
     }
 
     // Test reading a file and writing it to a file
     let start_time = Instant::now();
-    match vfs.read_file(Path::new("common/script_enums.txt")) {     
+    match vfs.read_file(PathBuf::from("common/script_enums.txt")) {     
         Ok(data) => {
             log::info!("Test Node found in {:?}", start_time.elapsed());
             if let Err(err) = write_data_to_file(&data, "output_file2.txt") {
@@ -90,12 +90,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Example usage: get file metadata
     let start_time = Instant::now();
-    let (size, category) = vfs.file_metadata(Path::new("common/national_focus/area.txt"))?;
+    let (size, category) = vfs.file_metadata(PathBuf::from("common/national_focus/area.txt"))?;
     log::info!("Test Node found in {:?}", start_time.elapsed());
     log::info!("File size: {} bytes", size);
     log::info!("File category: {:?}", category);
 
-    match vfs.read_dir(Path::new("")) {
+    match vfs.read_dir(PathBuf::from("")) {
         Ok(contents) => log::info!("Directory contents: {:?}", contents),
         Err(err) => log::info!("Error listing directory: {:?}", err),
     }

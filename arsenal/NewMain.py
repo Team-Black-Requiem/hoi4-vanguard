@@ -1,5 +1,5 @@
-from PyQt6 import QtWidgets, uic, QtCore
-import sys
+from PyQt6 import QtWidgets, uic, QtCore, QtGui
+import sys, time
 from FocusEditor.FocusTreeDesigner import FocusTreeTool  # Import the FocusTreeTool class
 from Tabbing import Tabbing
 
@@ -65,7 +65,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
 def main():
     
-    print(vanguard.sum_as_string(5, 2)) # Now we cooking with gas. Rust is here!
+    vfs = vanguard.Vfs()
+    vfs.scan_new_layer("c:/users/afrey/documents/github/cg-black-requiem", [".vscode", ".gitattributes", ".git", ".gitignore"]) #calling rust from python is much easier then I thought
+    print(vfs.is_file("common/script_enums.txt"))
     
     if hasattr(QtCore.Qt, 'AA_EnableHighDpiScaling'):
         QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
@@ -75,10 +77,16 @@ def main():
     
     app = QtWidgets.QApplication(sys.argv)
     QtWidgets.QApplication.setStyle("Fusion") #default stylesheet hurrdurr
-
+    
+    pixmap = QtGui.QPixmap("arsenal.png")
+    splash = QtWidgets.QSplashScreen(pixmap)
+    splash.show()
+    time.sleep(5)
     
     main = MainWindow()
     main.show()
+    splash.close()
+    
     sys.exit(app.exec())
 
 if __name__ == '__main__':

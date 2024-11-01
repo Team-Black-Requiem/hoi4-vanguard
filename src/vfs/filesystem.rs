@@ -1,15 +1,11 @@
 use std::{
-    collections::HashSet, error::Error, fs::File, io::{BufRead, BufReader}, path::{Path, PathBuf}
+    error::Error, fmt, fs::File, io::{BufRead, BufReader}, path::{Path, PathBuf}
 };
 
 use regex::Regex;
-// Define the FileSystem trait
-pub(crate) trait FileSystem: std::fmt::Debug {
-    fn read_file(&self, path: &Path) -> Result<Vec<u8>, Box<dyn Error>>;
-    fn read_dir(&self, path: &Path) -> Result<HashSet<PathBuf>, Box<dyn Error>>;
-    fn file_metadata(&self, path: &Path) -> Result<(u64, FileCategory), Box<dyn Error>>;
-}
 
+use pyo3::exceptions::PyOSError;
+use pyo3::prelude::*;
 
 // Custom error type for directory operations
 #[derive(Debug)]
@@ -19,6 +15,8 @@ pub(crate) enum DirectoryError {
     NotAFile,
     NotADirectory,
 }
+
+impl Error for DirectoryError {}
 
 impl std::fmt::Display for DirectoryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -31,10 +29,13 @@ impl std::fmt::Display for DirectoryError {
     }
 }
 
-impl Error for DirectoryError {}
+impl std::convert::From<DirectoryError> for PyErr {
+    fn from(err: DirectoryError) -> PyErr {
+        PyOSError::new_err(err.to_string())
+    }
+}
 
-
-// Define the SkipRule struct for folder skipping with replace_path
+/// Define the SkipRule struct for folder skipping with replace_path
 // This is a piece of bantha doodoo but it doth the job
 #[derive(Debug)]
 pub(crate) struct SkipRule {
@@ -74,8 +75,7 @@ pub(crate) fn parse_mod_file(file_path: &Path, index: usize) -> Vec<SkipRule> {
     skip_rules
 }
 
-
-//enums for categorizing paradox file types
+///enums for categorizing paradox file types
 //TODO: make this a bit more robust for games other then HOI4
 //TODO: use this for per-file data store as I can tie the parser to the file type
 #[derive(Debug, Clone)]
@@ -122,6 +122,30 @@ impl FileCategory {
             }
         } else if path.is_file() {
             FileCategory::Other     //extensionless file
-        } else {FileCategory::Dir}  //dir = error
+        } else {FileCategory::Dir}  //it shouldn't be possible to get here but just in case of catastrophic failure we'll return a directory
+    }
+}
+
+impl fmt::Display for FileCategory {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FileCategory::Text => write!(f, "Text"),
+            FileCategory::Gui => write!(f, "Gui"),
+            FileCategory::Gfx => write!(f, "Gfx"),
+            FileCategory::Sfx => write!(f, "Sfx"),
+            FileCategory::Asset => write!(f, "Asset"),
+            FileCategory::Map => write!(f, "Map"),
+            FileCategory::Yaml => write!(f, "Yaml"),
+            FileCategory::Csv => write!(f, "Csv"),
+            FileCategory::Image => write!(f, "Image"),
+            FileCategory::Shader => write!(f, "Shader"),
+            FileCategory::Lua => write!(f, "Lua"),
+            FileCategory::Mesh => write!(f, "Mesh"),
+            FileCategory::Font => write!(f, "Font"),
+            FileCategory::Sound => write!(f, "Sound"),
+            FileCategory::Mod => write!(f, "Mod"),
+            FileCategory::Other => write!(f, "Other: Unrecognized or extensionless file"),
+            FileCategory::Dir => write!(f, "Dir: ERROR"),
+        }
     }
 }
