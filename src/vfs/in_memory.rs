@@ -14,7 +14,7 @@ use super::filesystem::*;
 pub(crate) struct Directory {
     files: HashMap<u32, VfsFile>,
     directories: HashMap<u32, HashSet<u32>>,
-    path_mappings: HashMap<PathBuf, u32>,
+    pub(super) path_mappings: HashMap<PathBuf, u32>,
 }
 
 impl Directory {

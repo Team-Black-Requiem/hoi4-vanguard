@@ -67,7 +67,7 @@ def main():
     
     vfs = vanguard.Vfs()
     vfs.scan_new_layer("c:/users/afrey/documents/github/cg-black-requiem", [".vscode", ".gitattributes", ".git", ".gitignore"]) #calling rust from python is much easier then I thought
-    print(vfs.is_file("common/script_enums.txt"))
+    print(vfs.is_file("common/script_enums.txt")) #Does file exist in vfs test
     
     if hasattr(QtCore.Qt, 'AA_EnableHighDpiScaling'):
         QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)

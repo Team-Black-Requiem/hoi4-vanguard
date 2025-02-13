@@ -62,6 +62,7 @@ pub(crate) fn parse_mod_file(file_path: &Path, index: usize) -> Vec<SkipRule> {
     if let Ok(file) = File::open(file_path) {
         let reader = BufReader::new(file);
         for line in reader.lines().map_while(Result::ok) {
+            let line = line.trim(); //this is new and I have no idea if it works
             if let Some(captures) = re.captures(&line) {
                 // Extract the path from the capture group
                 if let Some(path_str) = captures.get(1) {

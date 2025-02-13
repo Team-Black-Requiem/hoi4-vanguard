@@ -12,6 +12,7 @@ use pyo3::prelude::*;
 use super::in_memory::Directory;
 use super::filesystem::*;
 
+use crate::utility::position::{Pos, Range};
 
 // Define the vfs struct
 #[pyclass]
@@ -54,11 +55,12 @@ impl Vfs {
 
     pub fn read_file(&self, path: PathBuf) -> PyResult<Vec<u8>> {
         for (index, layer) in self.layers.iter().enumerate().rev() {
+            let current_layer = self.layers.len() - index - 1;
+            if self.skip_dir(current_layer, &path) {
+                continue; // Skip this layer if it's excluded by a rule
+            }
             if let Ok(data) = layer.read_file(&path) {
-                let current_layer = self.layers.len() - index - 1;
-                if !self.skip_dir(current_layer, &path) {
-                    return Ok(data);
-                }
+                return Ok(data);
             }
         }
         Err(PyValueError::new_err(format!("File not found: {}", path.display())))
@@ -67,8 +69,12 @@ impl Vfs {
     pub fn read_dir(&self, path: PathBuf) -> PyResult<HashSet<PathBuf>> {
         let mut result = std::collections::HashSet::new();
         for (index, layer) in self.layers.iter().enumerate().rev() {
+            let current_layer = self.layers.len() - index - 1;
+            if self.skip_dir(current_layer, &path) {
+                continue; // Skip this layer if it's excluded by a rule
+            }
+    
             if let Ok(layer_contents) = layer.read_dir(&path) {
-                let current_layer = self.layers.len() - index - 1;
                 for file in layer_contents {
                     if self.skip_dir(current_layer, &file) {
                         continue;
@@ -79,7 +85,6 @@ impl Vfs {
         }
         Ok(result)
     }
-
 
 }
 
@@ -110,14 +115,32 @@ impl Vfs {
         }
     }
 
-    /// Find the highest-priority layer containing the given path.
-    pub fn resolve_file(&self, path: &Path) -> Option<(usize, u32)> {
+    /// Find the highest-priority layer and file containing the given path.
+    pub fn resolve_file_path(&self, path: &Path) -> Option<(usize, u32)> {
         for (index, layer) in self.layers.iter().enumerate().rev() {
+            let current_layer = self.layers.len() - index - 1;
+            if self.skip_dir(current_layer, path) {
+                continue; // Skip this layer if it's excluded by a rule
+            }
+
             if let Ok(file_id) = layer.resolve_path(path) {
                 return Some((index, file_id));
             }
         }
         None
+    }
+
+    /// Resolve a unique file ID to a path irrespective of the layer or skip rules.
+    pub fn resolve_file_id(&self, layer_index: usize, file_id: u32) -> Option<String> {
+        self.layers.get(layer_index).and_then(|layer| {
+            layer.path_mappings.iter().find_map(|(path, &id)| {
+                if id == file_id {
+                    Some(path.to_string_lossy().to_string())
+                } else {
+                    None
+                }
+            })
+        })
     }
 
     pub fn add_skip_rule(&mut self, rule: SkipRule) {
@@ -138,11 +161,13 @@ impl Vfs {
 
     pub fn file_metadata(&self, path: PathBuf) -> Result<(u32, FileCategory), Box<dyn Error>> {
         for (index, layer) in self.layers.iter().enumerate().rev() {
+            let current_layer = self.layers.len() - index - 1;
+            if self.skip_dir(current_layer, &path) {
+                continue; // Skip this layer if it's excluded by a rule
+            }
+    
             if let Ok(metadata) = layer.file_metadata(&path) {
-                let current_layer = self.layers.len() - index - 1;
-                if !self.skip_dir(current_layer, &path) {
-                    return Ok(metadata);
-                }
+                return Ok(metadata);
             }
         }
         Err(Box::new(io::Error::new(

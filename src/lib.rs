@@ -1,6 +1,8 @@
 use pyo3::prelude::*;
 
 mod vfs;
+mod utility;
+mod parser;
 use crate::vfs::unionfs::*;
 
 //This is the file that defines functions exposed to Python via the internal vanguard module.

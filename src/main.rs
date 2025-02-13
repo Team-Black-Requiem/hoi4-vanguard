@@ -1,8 +1,10 @@
-use std::{fs::File, io::Write, path::{Path, PathBuf}, time::Instant};
+use std::{fs::{self, File}, io::Write, path::{Path, PathBuf}, time::Instant};
 
 use flexi_logger::{Logger, FileSpec, Duplicate};
 
 mod vfs;
+mod utility;
+mod parser;
 use crate::vfs::{unionfs::*, scanner};
 
 
@@ -19,6 +21,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .duplicate_to_stderr(Duplicate::Info)  
         .format_for_files(flexi_logger::colored_with_thread)
         .start()?;
+
+
+    let input = r#"
+        namespace = test
+
+        #One event
+        country_event = {
+                id = test.1
+            desc = "test description"
+        }
+        #Another event
+        country_event = {
+            id = test.2
+        desc = "test 2 description"
+        }
+
+
+        "#;
+
+    match parser::sharedparsers::all(input) {
+        Ok((_, statements)) => log::info!("{:#?}", statements),
+        Err(e) => log::error!("Error: {:?}", e),
+    }
+
+    let input = r#"
+    script_enum_operative_mission_type = {
+    	build_intel_network
+    	counter_intelligence
+    	quiet_network
+    	root_out_resistance
+    	control_trade
+    }
+    "#;
+
+    match parser::sharedparsers::all(input) {
+        Ok((_, statements)) => log::info!("{:#?}", statements),
+        Err(e) => log::error!("Error: {:?}", e),
+    }
+
+
     
     let mut vfs = Vfs::new();
     let base_game_path = scanner::get_base_game_path()?;
@@ -34,8 +76,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // Test reading a file and writing it to a file
     let start_time = Instant::now();
-    match vfs.read_file(PathBuf::from("common/script_enums.txt")) {     
+    match vfs.read_file(PathBuf::from("history/states/1-France.txt")) {     
         Ok(data) => {
+
+        // Convert Vec<u8> to String
+        match std::str::from_utf8(&data) {
+            Ok(content) => {
+                // Parse the content using the `all` parser
+                match parser::sharedparsers::all(content) {
+                    Ok((remaining, parsed_result)) => {
+                        if !remaining.is_empty() {
+                            log::warn!("Unparsed input remains: {:?}", remaining);
+                        }
+                            // Convert parsed data to a string or structured output
+                            let output_string = format!("{:#?}", parsed_result);
+                            // Write parsed output to a file
+                            fs::write("output_file_parser.txt", output_string)?;
+                            log::info!("Parsing successful: check output_file_parser.txt");
+                        }
+                        Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                            log::error!("Parsing error: {:?}, kind: {:?}", e.input, e.code);
+                        }
+                        Err(nom::Err::Incomplete(_)) => {
+                            log::error!("Parsing incomplete. More data needed.");
+                        }
+                    }
+                }
+                Err(_) => todo!(),
+            } 
+            
             log::info!("Test Node found in {:?}", start_time.elapsed());
             if let Err(err) = write_data_to_file(&data, "output_file.txt") {
                 log::error!("Error writing to file: {:?}", err);

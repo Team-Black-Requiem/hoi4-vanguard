@@ -5,8 +5,7 @@ use std::{
     fs::File,
     };
 
-
-use rayon::prelude::*;
+use serde::Deserialize;
 use jwalk::WalkDir;
 use native_dialog::FileDialog;
 extern crate winreg;
@@ -16,7 +15,7 @@ use super::in_memory::Directory;
 use super::filesystem::FileCategory;
 
     #[cfg(target_os = "windows")]                                    //acquire steam install from windows registry. ( ͡° ͜ʖ ͡°)
-    fn find_hoi4_installation_path() -> Option<PathBuf> {            //perfomance is basically free but assumes that most people will have a valid hoi4 directory in the same location as steam.
+    fn find_hoi4_installation_path() -> Option<PathBuf> {
 
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let steam_key = hkcu.open_subkey_with_flags("SOFTWARE\\Valve\\Steam", KEY_READ).ok()?;
