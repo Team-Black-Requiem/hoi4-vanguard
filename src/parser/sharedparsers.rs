@@ -204,14 +204,19 @@ where
     between_l(nom_char('{'), nom_char('}'), inner, "clause")
 }
 
-// Match characters that are not escaped or quotes
+/// Matches one or more characters that are NOT '\' or '"'
 fn quoted_char_snippet(input: &str) -> IResult<&str, &str> {
-    is_not("\\\"")(input)
+    log::debug!("THIS IS QUOTED_CHAR_SNIPPET. Parsing quoted_char_snippet: {:?}", input);
+    take_while(|c: char| c != '\\' && c != '"')(input)
 }
 
-// Match escaped characters (e.g., \" or \\)
+/// Matches an escaped sequence: either `\"` or `\`
 fn escaped_char(input: &str) -> IResult<&str, &str> {
-    escaped(is_not("\\\""), '\\', alt((char('\"'), char('\\'))))(input)
+    log::debug!("THIS IS ESCAPED_CHAR. Parsing escaped_char: {:?}", input);
+    map(
+        alt((tag("\\\""), tag("\\"))),
+        |s: &str| s,
+    )(input)
 }
 
 fn metaprogramming_char_snippet(input: &str) -> IResult<&str, &str> {
@@ -323,13 +328,13 @@ fn key_q(input: &str) -> IResult<&str, Key> {
     let key_parser = terminated(
         delimited(
             char('"'), // Opening quote
-            many1(alt((quoted_char_snippet, escaped_char))), // Match either quoted or escaped characters
+            alt((quoted_char_snippet, escaped_char)), // Match either quoted or escaped characters
             char('"'), // Closing quote
     ),
     multispace0); // Consume trailing whitespace
 
-    map(key_parser, |s: Vec<&str>| {
-        let combined: String = s.concat(); // Combine the pieces into a single string
+    map(key_parser, |s: &str| {
+        let combined: String = s.to_string(); // Combine the pieces into a single string
         Key::new(combined) // Wrap it in the `Key` struct
     })(input)
 }
@@ -367,12 +372,14 @@ fn value_b_no(input: &str) -> IResult<&str, Value> {
 
 // Match a quoted string (with escape sequences)
 fn quoted_string(input: &str) -> IResult<&str, String> {
-    let parser = delimited(
-        char('"'),  // Opening quote
-        many1(alt((quoted_char_snippet, escaped_char))), // Match quoted or escaped characters
-        char('"'),  // Closing quote
-    );
-    map(parser, |s: Vec<&str>| s.concat())(input)  // Combine all matched parts into a single string
+    let parser = delimited(multispace0,
+        delimited(
+            char('"'),  // Opening quote
+            alt((quoted_char_snippet, escaped_char)), // Match quoted or escaped characters
+            char('"'),  // Closing quote
+        ),
+    multispace0);  // Consume trailing whitespace
+    map(parser, |s: &str| s.to_string())(input)  // Combine all matched parts into a single string
 }
 
 fn value_q<'a>(input: &'a str) -> IResult<&'a str, Value> {
@@ -604,7 +611,7 @@ fn leaf_value(input: &str) -> IResult<&str, (Range, Value)> {
     
     // Lookahead: ensure the next token is NOT an operator.
     // If an operator is found, `not(peek(operator))` will fail without consuming input.
-    let (input, _) = not(peek(operator))(input)?;
+    let (input, _) = not(preceded(multispace0,peek(operator)))(input)?;
     
     // Capture ending position.
     let (input, end_span) = get_position(input)?;
@@ -763,7 +770,7 @@ fn statement(input: &str) -> IResult<&str, Statement> {
             Statement::Comment(s.0, s.1)
         }),
         map(
-            terminated(leaf_value, not(operator_lookahead)),
+            delimited(multispace0, leaf_value, not(operator_lookahead)),
             |(range, val)| {
                 log::debug!("Parsed leaf_value: {:?}", val);
                 Statement::Value(range, val)
@@ -778,7 +785,7 @@ fn statement(input: &str) -> IResult<&str, Statement> {
             log::debug!("Remaining input: {:?}", remaining_input);
         },
         Err(err) => {
-            log::error!("Failed to parse statement: {:?}", err);
+            //log::debug!("Failed to parse statement: {:?}", err);
         }
     }
     

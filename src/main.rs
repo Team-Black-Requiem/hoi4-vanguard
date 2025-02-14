@@ -76,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // Test reading a file and writing it to a file
     let start_time = Instant::now();
-    match vfs.read_file(PathBuf::from("history/states/1-France.txt")) {     
+    match vfs.read_file(PathBuf::from("interface/frontendmainview.gui")) {     
         Ok(data) => {
 
         // Convert Vec<u8> to String
@@ -93,6 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // Write parsed output to a file
                             fs::write("output_file_parser.txt", output_string)?;
                             log::info!("Parsing successful: check output_file_parser.txt");
+                            log::info!("Parsed in {:?}", start_time.elapsed());
                         }
                         Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                             log::error!("Parsing error: {:?}, kind: {:?}", e.input, e.code);
