@@ -1,8 +1,6 @@
 // initial filescan 
 use std::{
-    path::{Path, PathBuf},
-    io::Read,
-    fs::File,
+    fs::{self, File}, io::Read, path::{Path, PathBuf}, str
     };
 
 use serde::Deserialize;
@@ -10,6 +8,8 @@ use jwalk::WalkDir;
 use native_dialog::FileDialog;
 extern crate winreg;
 use winreg::{RegKey, enums::*};
+
+use crate::parser;
 
 use super::in_memory::Directory;
 use super::filesystem::FileCategory;
@@ -88,15 +88,27 @@ use super::filesystem::FileCategory;
         }
     }
 
-    pub(crate) fn scan_directory(path: &Path, exclude_criteria: &[String]) -> Result<Directory, Box<dyn std::error::Error>> {
+    pub(crate) fn scan_directory(string_manager: &crate::utility::util::StringResourceManager, path: &Path, exclude_criteria: &[String]) -> Result<Directory, Box<dyn std::error::Error>> {
         log::info!("Scanning directory: {}", path.display());
         let mut layer = Directory::new();        
-        for entry in WalkDir::new(path).follow_links(true).into_iter().filter_map(|e| e.ok()) {
+        for entry in WalkDir::new(path)
+        .parallelism(jwalk::Parallelism::RayonNewPool(num_cpus::get()))
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok()) {
             let entry_path = entry.path();
             let relative_path = entry_path.strip_prefix(path)?;
             // Check if the entry path should be excluded
-            if exclude_criteria.iter().any(|excluded| relative_path.starts_with(excluded)) {
-                //log::info!("Excluding: {}", entry_path.display());
+            if exclude_criteria.iter().any(|excluded| {
+                if entry_path.is_file() {
+                    // For files, check for an exact match
+                    relative_path == Path::new(excluded)
+                } else {
+                    // For directories, check if the path starts with the excluded directory
+                    relative_path.starts_with(excluded)
+                }
+            }) {
+                // log::info!("Excluding: {}", entry_path.display());
                 continue;
             }
             if entry.file_type().is_dir() {
@@ -107,19 +119,48 @@ use super::filesystem::FileCategory;
                 match file_category {
                     // Match parseable text files
                     FileCategory::Text | FileCategory::Gui | FileCategory::Gfx |
-                    FileCategory::Asset | FileCategory::Yaml | FileCategory::Csv |
-                    FileCategory::Shader | FileCategory::Lua | FileCategory::Mod => {
+                    FileCategory::Asset | FileCategory::Csv | FileCategory::Mod => {
                         let mut file = File::open(&entry_path)?;
                         let mut contents = Vec::new();
                         file.read_to_end(&mut contents)?;
-                        layer.add_file(file_name.as_ref(), contents);
+                        
+                        //layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
+                        // Parse the content using the `all` parser
+                        //
+                        let parsecontents = str::from_utf8(&contents).unwrap_or_default();
+                        match parser::sharedparsers::all(parsecontents, string_manager) {
+                            Ok((remaining, parsed_result)) => {
+                                layer.add_file(file_name.as_ref(), contents.clone(), parsed_result);
+                                if !remaining.is_empty() {
+                                    log::warn!("Unparsed input remains: {:?}", remaining);
+                                }
+                            }
+                            Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                                layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
+                                log::error!("Parsing error: {:?}, kind: {:?}", e.input, e.code);
+                            }
+                            Err(nom::Err::Incomplete(_)) => {
+                                layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
+                                log::error!("Parsing incomplete. More data needed.");              
+                            }
+                        }
+                        
+                    }
+                    FileCategory::Yaml | FileCategory::Lua |
+                    FileCategory::Shader   => {
+                        // don't parse these files yet, but add them to the layer
+                        let mut file = File::open(&entry_path)?;
+                        let mut contents = Vec::new();
+                        file.read_to_end(&mut contents)?;
+                        
+                        layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
                     }
                     // Match files that we acknowledge but don't parse
                     FileCategory::Sfx | FileCategory::Map | FileCategory::Image |
                     FileCategory::Mesh | FileCategory::Font | FileCategory::Sound |
                     FileCategory::Other => {
                         // Add file with dummy data
-                        layer.add_file(file_name.as_ref(), vec![0]);
+                        layer.add_file(file_name.as_ref(), vec![0], crate::parser::sharedparsers::AllResult::default());
                     }
                     FileCategory::Dir => {
                         // This case should not be possible

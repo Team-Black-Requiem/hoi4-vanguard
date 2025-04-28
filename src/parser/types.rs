@@ -6,13 +6,15 @@ use std::{
     string::String,
 };
 
+use serde::{Deserialize, Serialize};
+
 use crate::utility::position::Range;
 use crate::utility::util;
 use self::util::*;
 
 // Enums
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
 pub enum Operator {
     Equals = 0,
     GreaterThan = 1,
@@ -33,13 +35,12 @@ fn operator_to_string(op: Operator) -> &'static str {
         Operator::LessThanOrEqual => "<=",
         Operator::NotEqual => "!=",
         Operator::EqualEqual => "==",
-        Operator::QuestionEqual => "?=",
-        _ => panic!("Unknown enum value"),
+        Operator::QuestionEqual => "?="
     }
 }
 
 // Key struct
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Key(String);
 
 impl Key {
@@ -56,7 +57,7 @@ impl Display for Key {
 }
 
 // Value enum
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum Value {
     String(StringTokens),
     QString(StringTokens),
@@ -108,54 +109,63 @@ impl Value {
                     .collect();
                 format!("{{ {} }}", statement_str.join(", "))
             }
-            Value::QString(tokens) => format!(
-                "\"{}\"",
-                string_manager
-                    .get_string_for_ids(tokens)
-                    .unwrap_or_else(|| "".to_string())
-            ),
-            Value::String(tokens) => string_manager
-                .get_string_for_ids(tokens)
-                .unwrap_or_else(|| "".to_string()),
-            Value::Bool(b) => if *b { "yes".to_string() } else { "no".to_string() },
-            Value::Float(f) => f.to_string(),
-            Value::Int(i) => i.to_string(),
+            Value::QString(tokens) => {
+                format!("\"{}\"", string_manager.get_string_for_ids(tokens).unwrap_or_default())
+            }
+            Value::String(tokens) => {
+                string_manager.get_string_for_ids(tokens).unwrap_or_default()
+            }
+            Value::Bool(b) => {
+                if *b { "yes".to_string() } else { "no".to_string() }
+            }
+            Value::Float(f) => {
+                format!("{}", f)
+            }
+            Value::Int(i) => {
+                format!("{}", i)
+            }
         }
     }
-    fn to_raw_string(&self) -> String {
+    pub fn to_raw_string(&self, string_manager: &StringResourceManager) -> String {
         match self {
             Value::Clause(statements) => {
-                // Similar logic for raw string representation of Statement
+                // Convert each Statement to its raw string representation
                 let statement_str: Vec<String> = statements
                     .iter()
                     .map(|stmt| match stmt {
                         Statement::Comment(_, comment) => comment.clone(),
                         Statement::KeyValue(key_value) => format!("{:?}", key_value), // Adjust as needed
-                        Statement::Value(_, value) => value.to_raw_string(),
+                        Statement::Value(_, value) => value.to_raw_string(string_manager),
                     })
                     .collect();
                 format!("{{ {} }}", statement_str.join(", "))
             }
-            Value::QString(tokens) | Value::String(tokens) => STRING_RESOURCE_MANAGER
-                .get_string_for_ids(&tokens)
-                .unwrap_or_else(|| "".to_string()),
-            Value::Bool(b) => if *b { "yes".to_string() } else { "no".to_string() },
-            Value::Float(f) => f.to_string(),
-            Value::Int(i) => i.to_string(),
+            Value::QString(tokens) | Value::String(tokens) => {
+                string_manager.get_string_for_ids(tokens).unwrap_or_else(|| "".to_string())
+            }
+            Value::Bool(b) => {
+                if *b { "yes".to_string() } else { "no".to_string() }
+            }
+            Value::Float(f) => {
+                format!("{}", f)
+            }
+            Value::Int(i) => {
+                format!("{}", i)
+            }
         }
     }
 
     /// Converts the Value into its tokenized ID, or interns it if necessary.
-    pub fn to_string_id(self) -> StringTokens {
+    pub fn to_string_id(&self, string_manager: &StringResourceManager) -> StringTokens {
         match self {
             Value::String(tokens) | Value::QString(tokens) => tokens.clone(),
-            _ => STRING_RESOURCE_MANAGER.intern_identifier_token(&self.to_string(&STRING_RESOURCE_MANAGER)),
+            _ => string_manager.intern_identifier_token(&self.to_string(string_manager)),
         }
     }
 }
 
 // KeyValueItem struct
-#[derive(Debug, PartialEq, Hash)]
+#[derive(Debug, PartialEq, Hash, Serialize, Deserialize)]
 pub(crate) struct KeyValueItem {
     pub(crate) key: Key,
     pub(crate) value: Value,
@@ -169,7 +179,7 @@ impl Display for KeyValueItem {
 }
 
 // PosKeyValue struct
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PosKeyValue {
     pub(crate) range: Range,
     pub(crate) kv_item: KeyValueItem,
@@ -196,7 +206,7 @@ impl std::hash::Hash for PosKeyValue {
 }
 
 // Statement enum
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Statement {
     Comment(Range, String),  // range and comment string
     KeyValue(PosKeyValue),
@@ -250,7 +260,9 @@ impl Display for Statement {
 
 // ParsedFile struct
 #[derive(Debug, PartialEq)]
-struct ParsedFile(Vec<Statement>);
+pub(crate) struct ParsedFile {
+    pub(crate) statements: Vec<Statement>,
+}
 
 // APIs
 type ParseFile = fn(String) -> Result<ParsedFile, ()>;

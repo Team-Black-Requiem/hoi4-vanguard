@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use super::in_memory::Directory;
 use super::filesystem::*;
 
-use crate::utility::position::{Pos, Range};
+use crate::{parser::sharedparsers::AllResult, utility::{position::{Pos, Range}, util::StringResourceManager}};
 
 // Define the vfs struct
 #[pyclass]
@@ -21,6 +21,7 @@ pub(crate) struct Vfs {
     layers: Vec<Directory>, // Box<dyn FileSystem> is also possible, but it's not supported by pyo3 and we don't need it
     load_order: Vec<usize>,
     skip_rules: Vec<SkipRule>,
+    string_manager: StringResourceManager,
 }
 
 #[pymethods]
@@ -30,7 +31,8 @@ impl Vfs {
         Self {
             layers: Vec::new(),
             load_order: Vec::new(),
-            skip_rules: Vec::new()
+            skip_rules: Vec::new(),
+            string_manager: StringResourceManager::new(),
         }
     }
 
@@ -38,6 +40,7 @@ impl Vfs {
         Vfs::add_layer(
             self,
             super::scanner::scan_directory(
+                &self.string_manager,
                 &path,
                 &ignore_list //&[".vscode".to_string(), ".gitattributes".to_string(), ".git".to_string(), ".gitignore".to_string()]
             ).expect("Failed to scan directory for vfs setup"), path
@@ -148,15 +151,10 @@ impl Vfs {
     }
 
     fn skip_dir(&self, current_layer: usize, directory: &Path) -> bool {
-        for rule in &self.skip_rules {
-            if rule.should_skip(current_layer) && directory.starts_with(&rule.directory) {
-                //See if directory is not a direct subdirectory of the skip rule's directory by doing math on the path lenth
-                if directory.components().count()  <= rule.directory.components().count() + 1{
-                    return true; // Skip if the conditions are met
-                }
-            }
-        }
-        false
+        self.skip_rules.iter().any(|rule| {
+            rule.should_skip(current_layer) && directory.starts_with(&rule.directory)
+                && directory.components().count() <= rule.directory.components().count() + 1
+        })
     }
 
     pub fn file_metadata(&self, path: PathBuf) -> Result<(u32, FileCategory), Box<dyn Error>> {
@@ -174,6 +172,23 @@ impl Vfs {
             io::ErrorKind::NotFound,
             "File not found",
         )))
+    }
+
+    pub fn get_string_manager(&self) -> &StringResourceManager {
+        &self.string_manager
+    }
+    
+    pub fn read_parseresult(&self, path: PathBuf) -> Result<&AllResult, Box<dyn Error>> {
+        for (index, layer) in self.layers.iter().enumerate().rev() {
+            let current_layer = self.layers.len() - index - 1;
+            if self.skip_dir(current_layer, &path) {
+                continue; // Skip this layer if it's excluded by a rule
+            }
+            if let Ok(data) = layer.read_parseresult(&path) {
+                return Ok(data);
+            }
+        }
+        Err(Box::new(io::Error::new(io::ErrorKind::NotFound, "Parse result not found")))
     }
 
     /// Serialize a layer0 to a file

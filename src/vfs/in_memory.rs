@@ -8,6 +8,8 @@ use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
 //use xxhash_rust::xxh3::xxh3_64;
 
+use crate::parser::sharedparsers::AllResult;
+
 use super::filesystem::*;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -26,10 +28,10 @@ impl Directory {
         }
     }
 
-    pub fn add_file<P: Into<PathBuf>>(&mut self, path: P, data: Vec<u8>) -> u32 {
+    pub fn add_file<P: Into<PathBuf>>(&mut self, path: P, data: Vec<u8>, parseresult: AllResult) -> u32 {
         let path = path.into();
         let id = self.generate_id(&path);
-        self.files.insert(id, VfsFile::new(data));
+        self.files.insert(id, VfsFile::new(data, parseresult));
         self.path_mapper(&path, id);
         id
     }
@@ -90,6 +92,15 @@ impl Directory {
         }
     }
 
+    pub fn read_parseresult(&self, path: &Path) -> Result<&AllResult, Box<dyn Error>> {
+        let id = self.resolve_path(path)?;
+        if let Some(data) = self.files.get(&id) {
+            Ok(data.parsed_data().get_parsetree())
+        } else {
+            Err(Box::new(DirectoryError::NotFound))
+        }
+    }
+
     pub fn file_metadata(&self, path: &Path) -> Result<(u32, FileCategory), Box<dyn Error>> {
         let id = self.resolve_path(path)?;
         if let Some(data) = self.files.get(&id) {
@@ -112,10 +123,10 @@ pub(crate) struct VfsFile {
 }
 
 impl VfsFile {
-    pub fn new(raw_data: Vec<u8>) -> Self {
+    pub fn new(raw_data: Vec<u8>, parseresult: AllResult) -> Self {
         Self {
             raw_data,
-            parsed_data: ParseTree::new(),
+            parsed_data: ParseTree::new(parseresult),
         }
     }
 
@@ -124,8 +135,16 @@ impl VfsFile {
         &self.raw_data
     }
 
+    pub fn parsed_data(&self) -> &ParseTree {
+        &self.parsed_data
+    }
+
     pub fn set_raw_data(&mut self, data: Vec<u8>) {
         self.raw_data = data;
+    }
+
+    pub fn set_parsed_data(&mut self, parseresult: AllResult) {
+        self.parsed_data = ParseTree::new(parseresult);
     }
 }
 
@@ -133,16 +152,23 @@ impl VfsFile {
 // Replace this with actual parsed output type
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct ParseTree {
-    // Define the structure of your parse tree or AST here
-    // This should represent the parsed output of your binary text data
+    parsetree: AllResult,
 }
 
 impl ParseTree {
-    pub fn new() -> Self {
+    pub fn new(parseresult: AllResult) -> Self {
         Self {
-            // Define the structure of your parse tree or AST here
-            // This should represent the parsed output of your binary text data
+            parsetree: parseresult
         }
+    }
+    pub fn default() -> Self {
+        Self {
+            parsetree: AllResult::default()
+        }
+    }
+
+    pub fn get_parsetree(&self) -> &AllResult {
+        &self.parsetree
     }
 }
 

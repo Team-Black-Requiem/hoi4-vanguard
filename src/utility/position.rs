@@ -6,6 +6,8 @@ use std::{
     path::{Path, PathBuf}
 };
 
+use serde::{Deserialize, Serialize};
+
 // Bit manipulation functions
 const fn pown32(n: i32) -> i32 {
     if n == 0 { 1 } else { pown32(n - 1) | (1 << (n - 1)) }
@@ -26,21 +28,23 @@ const fn mask64(m: i64, n: i64) -> i64 {
 // position struct
 #[derive(Clone, Copy, PartialOrd, Ord, Eq)]
 pub struct Pos {
-    code: i32,
+    code: u32,
 }
 
 impl Pos {
     // Constants used in the bit manipulation
     const COLUMN_BIT_COUNT: i32 = 11;
     const LINE_BIT_COUNT: i32 = 21;
-    const POS_COLUMN_MASK: i32 = (1 << Self::COLUMN_BIT_COUNT) - 1; // 0b00000000000000000000111111111111
+    const POS_COLUMN_MASK: u32 = (1 << Self::COLUMN_BIT_COUNT) - 1; // 0b00000000000000000000111111111111
     const LINE_COLUMN_MASK: i32 = ((1 << Self::LINE_BIT_COUNT) - 1) << Self::COLUMN_BIT_COUNT; // 0b11111111111111111111000000000000
 
     // Constructor
     pub fn new(line: i32, column: i32) -> Self {
-        let line = line.max(0);
-        let column = column.max(0);
-        let code = (column & Self::POS_COLUMN_MASK) | ((line << Self::COLUMN_BIT_COUNT) & Self::LINE_COLUMN_MASK);
+        assert!((0..(1 << Self::LINE_BIT_COUNT)).contains(&line), "Line value out of range");
+        assert!((0..(1 << Self::COLUMN_BIT_COUNT)).contains(&column), "Column value out of range");
+    
+        let code = (column as u32 & Self::POS_COLUMN_MASK)
+            | ((line as u32) << Self::COLUMN_BIT_COUNT);
         Pos { code }
     }
 
@@ -50,20 +54,22 @@ impl Pos {
     }
 
     // Accessors
+    #[inline]
     pub fn line(&self) -> i32 {
-        Self::lsr(self.code, Self::COLUMN_BIT_COUNT)
+        (self.code >> Self::COLUMN_BIT_COUNT) as i32
     }
-
+    
+    #[inline]
     pub fn column(&self) -> i32 {
-        self.code & Self::POS_COLUMN_MASK
+        (self.code & Self::POS_COLUMN_MASK) as i32
     }
 
-    pub fn encoding(&self) -> i32 {
+    pub fn encoding(&self) -> u32 {
         self.code
     }
 
     // Static method for decoding an encoded position
-    pub fn decode(code: i32) -> Self {
+    pub fn decode(code: u32) -> Self {
         Pos { code }
     }
 
@@ -86,6 +92,11 @@ impl Pos {
     /// Helper method for a "less than or equal" check
     pub fn pos_leq(&self, other: &Pos) -> bool {
         self.line() < other.line() || (self.line() == other.line() && self.column() <= other.column())
+    }
+
+    pub fn validate(&self) {
+        assert!(self.line() >= 0 && self.line() < (1 << Self::LINE_BIT_COUNT), "Invalid line value");
+        assert!(self.column() >= 0 && self.column() < (1 << Self::COLUMN_BIT_COUNT), "Invalid column value");
     }
 
 }
@@ -121,30 +132,28 @@ pub fn output_pos<W: Write>(writer: &mut W, pos: &Pos) -> io::Result<()> {
 }
 
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct Range {
-    code: i64,        // Encodes start/end line, column, height, etc.
+    code: u64,        // Encodes start/end line, column, height, etc.
     // come up with solution to tie into file index and union system
 }
 
 impl Range {
     // Bitmask and shift constants for encoding/decoding positions
-    const IS_SYNTHETIC_MASK: i64 = 1 << 63;
+    const IS_SYNTHETIC_MASK: u64 = 1 << 63;
 
-    pub fn new(
-        start_line: i32,
-        start_column: i32,
-        end_line: i32,
-        end_column: i32,
-    ) -> Self {
-        let code = ((start_line as i64) & 0x1FFFFF)
-            | ((start_column as i64) << 21)
-            | (((end_line - start_line) as i64) << 32)
-            | ((end_column as i64) << 52);
-
-        Range {
-            code,
-        }
+    pub fn new(start_line: i32, start_column: i32, end_line: i32, end_column: i32) -> Self {
+        assert!((0..(1 << 21)).contains(&start_line), "Start line out of range");
+        assert!((0..(1 << 11)).contains(&start_column), "Start column out of range");
+        assert!(end_line >= start_line, "End line must be >= start line");
+        assert!((0..(1 << 11)).contains(&end_column), "End column out of range");
+    
+        let code = ((start_line as u64) & 0x1FFFFF)
+            | (((start_column as u64) & 0x7FF) << 21)
+            | (((end_line as u64 - start_line as u64) & 0xFFFFF) << 32)
+            | (((end_column as u64) & 0x7FF) << 52);
+    
+        Range { code }
     }
 
     // Check if this range is synthetic
@@ -158,7 +167,7 @@ impl Range {
     }
 
     // Accessor for the encoded code
-    pub fn code(&self) -> i64 {
+    pub fn code(&self) -> u64 {
         self.code
     }
 
@@ -172,18 +181,22 @@ impl Range {
     }
 
     // Accessors for start and end line/column values
+    #[inline]
     pub fn start_line(&self) -> i32 {
         (self.code & 0x1FFFFF) as i32
     }
-
+    
+    #[inline]
     pub fn start_column(&self) -> i32 {
         ((self.code >> 21) & 0x7FF) as i32
     }
-
+    
+    #[inline]
     pub fn end_line(&self) -> i32 {
         (((self.code >> 32) & 0xFFFFF) as i32) + self.start_line()
     }
-
+    
+    #[inline]
     pub fn end_column(&self) -> i32 {
         ((self.code >> 52) & 0x7FF) as i32
     }
@@ -206,6 +219,13 @@ impl Range {
     /// Check if this range contains a specific position
     pub fn contains_pos(&self, pos: &Pos) -> bool {
         self.start_pos().pos_leq(pos) && self.end_pos().pos_geq(pos)
+    }
+
+    pub fn validate(&self) {
+        assert!(self.start_line() >= 0 && self.start_line() < (1 << 21), "Invalid start line");
+        assert!(self.start_column() >= 0 && self.start_column() < (1 << 11), "Invalid start column");
+        assert!(self.end_line() >= self.start_line(), "End line must be >= start line");
+        assert!(self.end_column() >= 0 && self.end_column() < (1 << 11), "Invalid end column");
     }
 
     /// Union of two ranges, if they are within the same file and layer
