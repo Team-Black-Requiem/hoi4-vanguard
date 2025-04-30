@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use super::in_memory::Directory;
 use super::filesystem::*;
 
-use crate::{parser::sharedparsers::AllResult, utility::{position::{Pos, Range}, util::StringResourceManager}};
+use crate::{parser::sharedparsers::AllResult, utility::util::StringResourceManager};
 
 // Define the vfs struct
 #[pyclass]

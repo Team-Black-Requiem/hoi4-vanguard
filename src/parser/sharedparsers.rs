@@ -1,10 +1,10 @@
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while1, take_while_m_n},
-    character::complete::{char, char as nom_char, digit1, multispace0, not_line_ending, satisfy},
+    character::complete::{char, char as nom_char, digit1, multispace0, multispace1, not_line_ending, satisfy},
     combinator::{map, not, opt, peek, recognize},
     error::{context, Error, ParseError},
-    multi::{self, many0, many1},
+    multi::{many0, many1},
     sequence::{delimited, preceded, terminated, tuple},
     Err,
     IResult
@@ -59,12 +59,21 @@ const ID_CHAR_ARRAY: &[char] = &[
     '_', ':', '@', '.', '\"', '-', '\'', '[', ']', '!', '<', '>', '$', '^', '&', '|', util::MAGIC_CHAR,
 ];
 
+// Characters that can be part of a value
+// pretty sure semicolon is not a value char and is meant to be dropped
+// but it is used in the F# code so we will keep it for now
 const VALUE_CHAR_ARRAY: &[char] = &[
     '_', '.', '-', ':', ';', '\'', '[', ']', '@', '\'', '+', '`', '%', '/', '!', ',', '<', '>',
     '?', '$', 'š', 'Š', '’', '|', '^', '*', '&', '“', '”', util::MAGIC_CHAR,
 ];
 
+const QUOTE_CHAR: char = '"';
+
 // Utility functions
+fn is_quote_char(c: char) -> bool {
+    c == QUOTE_CHAR
+}
+
 fn is_any_of_id_char(c: char) -> bool {
     ID_CHAR_ARRAY.contains(&c)
 }
@@ -328,10 +337,20 @@ fn value_s<'a>(
     string_manager: &StringResourceManager,
 ) -> IResult<&'a str, Value> {
     log::debug!("THIS IS VALUE_S. Parsing value_s: {:?}", truncate_input(input, 2));
+
+    // Check for a `"` at the beginning of the string and log a warning
+    // we'll make this more robust later
+    if peek(tag::<_, _, nom::error::Error<&str>>("\""))(input).is_ok() {
+        log::warn!(
+            "Detected a `\"` at the beginning of the string in value_s: {:?}",
+            truncate_input(input, 2)
+        );
+    }
     context(
         "string",
         map(
-            take_while1(is_value_char),
+            // Use `delimited` to discard the `"` at the beginning and end of the because if its here it escaped from value_q
+            delimited(opt(tag("\"")),take_while1(is_value_char),opt(tag("\""))),
             |s: &str| Value::String(string_manager.intern_identifier_token(s)),
         ),
     )(input)
@@ -371,21 +390,41 @@ fn value_b_no(input: &str) -> IResult<&str, Value> {
     )(input)
 }
 
-// Match a quoted string (with escape sequences)
+// Match a quoted string (with escape sequences) with additional checks
+// this is a roundabout way to ensure that quotes are opened and closed properly
+// this is a bit of a hack and likely still has edge cases
+// it may consider a string to be valid even if it is not
+// or vice versa
+// better then the alternative of not enforcing string validity at all
 fn quoted_string(input: &str) -> IResult<&str, String> {
     log::debug!("Parsing quoted_string: {:?}", truncate_input(input, 2));
     let mut parser = delimited(
-        char('"'), // Match the opening quote
-        map(
-            many0(alt((
-                quoted_char_snippet, // Match characters that are not `\` or `"`
-                escaped_char,        // Match escaped sequences like `\"` or `\\`
-            ))),
-            |parts: Vec<&str>| parts.concat(), // Combine all parts into a single string
-        ),
-        char('"'), // Match the closing quote
-    );
-    parser(input)
+            char('"'), // Match the opening quote
+            map(
+                many0(alt((
+                    quoted_char_snippet, // Match characters that are not `\` or `"`
+                    escaped_char,        // Match escaped sequences like `\"` or `\\`
+                ))),
+                |parts: Vec<&str>| parts.concat(), // Combine all parts into a single string
+            ),
+            terminated(
+                char('"'), // Match the closing quote
+                peek(alt((
+                    multispace1, // Allow whitespace
+                    operator_lookahead, // Allow operators - using lookahead is probably redundant 
+                    tag("}"), // Allow closing brace
+                    tag("\""), // Allow next quote
+                    tag("#"), // Allow comment
+                    tag(","), // Allow commas
+                    nom::combinator::eof, // Allow end of file
+
+                    tag(";"), // afaik we want to drop semicolons but we'll pass the buck
+
+                ))),
+            ),
+        );
+
+        parser(input)
 }
 
 fn value_q<'a>(
@@ -1063,15 +1102,39 @@ fn test_unclosed_top_level_bracket() {
 
 #[test]
 fn test_unopened_quote() {
-    let input = r#"10 = { Pohjois-Uudenmaan suojeluskuntapiiri" }"#;
-    let result = quoted_string(input);
+    let string_manager = crate::utility::util::StringResourceManager::new();
+    let input = r#"Pohjois-Uudenmaan suojeluskuntapiiri" "#;
+    let result = value_custom(input, &string_manager);
     assert!(result.is_err(), "Expected error for unopened quote, got: {:?}", result);
 }
 
 #[test]
 fn test_unbalanced_quotes() {
     let string_manager = crate::utility::util::StringResourceManager::new();
-    let input = r#"10 = { "Pohjois-Uudenmaan suojeluskuntapiiri }"#;
+    let input = r#""Pohjois-Uudenmaan suojeluskuntapiiri"#;
+    let result = value_custom(input, &string_manager);
+    assert!(result.is_err(), "Expected error for unbalanced quotes, got: {:?}", result);
+}
+
+#[test]
+fn test_unbalanced_quotes_all() {
+    let _ = flexi_logger::Logger::try_with_str("debug").unwrap()
+    .log_to_file(flexi_logger::FileSpec::default().directory(std::path::PathBuf::from(".")))
+    .duplicate_to_stderr(flexi_logger::Duplicate::Info)  
+    .format_for_files(flexi_logger::colored_with_thread)
+    .start();
+    let string_manager = crate::utility::util::StringResourceManager::new();
+    let input = r#"		
+        7 = { "Nylands Södra skyddskårsdistrikt" } #Helsinki
+		8 = { "Etelä-Kymenlaakson suojeluskuntapiiri" } #Kotka
+		9 = { "Pohjois-Kymenlaakson suojeluskuntapiiri" } #Kouvola
+		10 = { Pohjois-Uudenmaan suojeluskuntapiiri" } #Kerava"
+		11 = { Suur-Saimaan suojeluskuntapiiri" } #Lappeenranta"
+		12 = { Lahden suojeluskuntapiiri" } #Lahti "
+		13 = { Lahden suojeluskuntapiiri" } #Lahti"
+		14 = { Kanta-Hämeen suojeluskuntapiiri" } #Hämeenlinna"
+		15 = { Lounais-Hämeen suojeluskuntapiiri" } #Forssa"
+		16 = { "Pirkka-Hämeen suojeluskuntapiiri" } #Tampere"#;
     let result = value_custom(input, &string_manager);
     assert!(result.is_err(), "Expected error for unbalanced quotes, got: {:?}", result);
 }

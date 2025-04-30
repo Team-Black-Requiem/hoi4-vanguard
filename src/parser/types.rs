@@ -1,6 +1,5 @@
 use std::{
     cmp::PartialEq,
-    collections::HashMap,
     fmt::{self, Formatter, Display},
     hash::{Hash, Hasher},
     string::String,

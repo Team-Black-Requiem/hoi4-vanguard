@@ -1,9 +1,7 @@
 use std::{
-    collections::HashMap,
     fmt,
     io::{self, Write},
     hash::{Hash, Hasher},
-    path::{Path, PathBuf}
 };
 
 use serde::{Deserialize, Serialize};
