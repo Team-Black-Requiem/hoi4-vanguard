@@ -41,7 +41,7 @@ where
     }
 }
 
-fn truncate_input(input: &str, max_lines: usize) -> String {
+pub fn truncate_input(input: &str, max_lines: usize) -> String {
     input
         .lines()
         .take(max_lines)

@@ -10,6 +10,7 @@ extern crate winreg;
 use winreg::{RegKey, enums::*};
 
 use crate::parser;
+use crate::parser::sharedparsers::truncate_input;
 
 use super::in_memory::Directory;
 use super::filesystem::FileCategory;
@@ -137,7 +138,7 @@ use super::filesystem::FileCategory;
                             }
                             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                                 layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
-                                log::error!("Parsing error: {:?}, kind: {:?}", e.input, e.code);
+                                log::error!("Parsing error in file {:?}: {:?}, kind: {:?}", file_name, truncate_input(e.input, 10), e.code);
                             }
                             Err(nom::Err::Incomplete(_)) => {
                                 layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
