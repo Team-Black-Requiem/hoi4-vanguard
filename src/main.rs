@@ -5,7 +5,10 @@ use flexi_logger::{Logger, FileSpec, Duplicate};
 mod vfs;
 mod utility;
 mod parser;
+mod scope;
 use crate::vfs::{unionfs::*, scanner};
+
+
 
 
 fn write_data_to_file(data: &[u8], filename: &str) -> std::io::Result<()> {
@@ -17,7 +20,7 @@ fn write_data_to_file(data: &[u8], filename: &str) -> std::io::Result<()> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logger with console output and log file
     Logger::try_with_str("info")?
-        .log_to_file(FileSpec::default().directory(PathBuf::from(".")))
+        .log_to_file(FileSpec::default().directory(PathBuf::from("./logs")))
         .duplicate_to_stderr(Duplicate::Info)  
         .format_for_files(flexi_logger::colored_with_thread)
         .start()?;

@@ -7,7 +7,7 @@ use nom::{
     multi::{many0, many1},
     sequence::{delimited, preceded, terminated, tuple},
     Err,
-    IResult
+    IResult, Parser
 };
 use nom_locate::LocatedSpan;
 use log::info;
@@ -70,6 +70,14 @@ const VALUE_CHAR_ARRAY: &[char] = &[
 const QUOTE_CHAR: char = '"';
 
 // Utility functions
+
+fn ws<'a, F>(parser: F) -> impl FnMut(&'a str) -> IResult<&'a str, &'a str>
+where
+    F: FnMut(&'a str) -> IResult<&'a str, &'a str>,
+{
+    delimited(multispace0, parser,  multispace0)
+}
+
 fn is_quote_char(c: char) -> bool {
     c == QUOTE_CHAR
 }
@@ -131,27 +139,7 @@ fn metaprogramming_char_snippet(input: &str) -> IResult<&str, &str> {
     is_not("]\\")(input)
 }
 
-// A simple version of between_l that uses nom::error::Error.
-pub fn old_between_l<'a, F, G, H, O1, O2, O3>(
-    mut popen: F,
-    mut pclose: G,
-    mut p: H,
-    _label: &'static str, // label unused in this version
-) -> impl FnMut(&'a str) -> IResult<&'a str, O2, Error<&'a str>>
-where
-    F: FnMut(&'a str) -> IResult<&'a str, O1, Error<&'a str>>,
-    G: FnMut(&'a str) -> IResult<&'a str, O3, Error<&'a str>>,
-    H: FnMut(&'a str) -> IResult<&'a str, O2, Error<&'a str>>,
-{
-    move |input: &'a str| {
-        let (input, _) = popen(input)?;
-        let (input, output_inner) = p(input)?;
-        let (input, _) = pclose(input)?;
-        Ok((input, output_inner))
-    }
-}
-
-// A simple version of between_l that uses nom::error::Error.
+// A simple version of between_l that uses nom::error::Error
 pub fn between_l<'a, F, G, H, O1, O2, O3>(
     mut popen: F,
     mut pclose: G,
@@ -415,7 +403,7 @@ fn quoted_string(input: &str) -> IResult<&str, String> {
                     tag("}"), // Allow closing brace
                     tag("\""), // Allow next quote
                     tag("#"), // Allow comment
-                    tag(","), // Allow commas
+                    tag(","), // Allow commas 
                     nom::combinator::eof, // Allow end of file
 
                     tag(";"), // afaik we want to drop semicolons but we'll pass the buck

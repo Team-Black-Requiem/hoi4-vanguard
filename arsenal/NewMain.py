@@ -78,7 +78,7 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     QtWidgets.QApplication.setStyle("Fusion") #default stylesheet hurrdurr
     
-    pixmap = QtGui.QPixmap("arsenal.png")
+    pixmap = QtGui.QPixmap("arsenal/arsenal.png")
     splash = QtWidgets.QSplashScreen(pixmap)
     splash.show()
     time.sleep(5)
