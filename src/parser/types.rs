@@ -3,11 +3,12 @@ use std::{
     fmt::{self, Formatter, Display},
     hash::{Hash, Hasher},
     string::String,
+    ops::Range
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::utility::position::Range;
+//use crate::utility::position::Range;
 use crate::utility::util;
 use self::util::*;
 
@@ -180,7 +181,7 @@ impl Display for KeyValueItem {
 // PosKeyValue struct
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct PosKeyValue {
-    pub(crate) range: Range,
+    pub(crate) range: Range<usize>,
     pub(crate) kv_item: KeyValueItem,
 }
 
@@ -207,9 +208,9 @@ impl std::hash::Hash for PosKeyValue {
 // Statement enum
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Statement {
-    Comment(Range, String),  // range and comment string
+    Comment(Range<usize>, String),  // range and comment string
     KeyValue(PosKeyValue),
-    Value(Range, Value),
+    Value(Range<usize>, Value),
 }
 
 // Implement PartialEq manually to mirror F# equality:

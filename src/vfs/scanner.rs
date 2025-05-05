@@ -128,23 +128,24 @@ use super::filesystem::FileCategory;
                         //layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
                         // Parse the content using the `all` parser
                         //
-                        let parsecontents = str::from_utf8(&contents).unwrap_or_default();
-                        match parser::sharedparsers::all(parsecontents, string_manager) {
-                            Ok((remaining, parsed_result)) => {
-                                layer.add_file(file_name.as_ref(), contents.clone(), parsed_result);
-                                if !remaining.is_empty() {
-                                    log::warn!("Unparsed input remains: {:?}", remaining);
-                                }
-                            }
-                            Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
-                                layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
-                                log::error!("Parsing error in file {:?}: {:?}, kind: {:?}", file_name, truncate_input(e.input, 10), e.code);
-                            }
-                            Err(nom::Err::Incomplete(_)) => {
-                                layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
-                                log::error!("Parsing incomplete. More data needed.");              
-                            }
-                        }
+                        layer.add_file(file_name.as_ref(), contents.clone());
+                        layer.parse_file(file_name.as_ref(), string_manager);
+                        //match parser::sharedparsers::parse(parsecontents, string_manager) {
+                        //    Ok((remaining, parsed_result)) => {
+                        //        layer.add_file(file_name.as_ref(), contents.clone(), parsed_result);
+                        //        if !remaining.is_empty() {
+                        //            log::warn!("Unparsed input remains: {:?}", remaining);
+                        //        }
+                        //    }
+                        //    Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                        //        layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
+                        //        log::error!("Parsing error in file {:?}: {:?}, kind: {:?}", file_name, truncate_input(e.input, 10), e.code);
+                        //    }
+                        //    Err(nom::Err::Incomplete(_)) => {
+                        //        layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
+                        //        log::error!("Parsing incomplete. More data needed.");              
+                        //    }
+                        //}
                         
                     }
                     FileCategory::Yaml | FileCategory::Lua |
@@ -154,14 +155,14 @@ use super::filesystem::FileCategory;
                         let mut contents = Vec::new();
                         file.read_to_end(&mut contents)?;
                         
-                        layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
+                        layer.add_file(file_name.as_ref(), contents.clone());
                     }
                     // Match files that we acknowledge but don't parse
                     FileCategory::Sfx | FileCategory::Map | FileCategory::Image |
                     FileCategory::Mesh | FileCategory::Font | FileCategory::Sound |
                     FileCategory::Other => {
                         // Add file with dummy data
-                        layer.add_file(file_name.as_ref(), vec![0], crate::parser::sharedparsers::AllResult::default());
+                        layer.add_file(file_name.as_ref(), vec![0]);
                     }
                     FileCategory::Dir => {
                         // This case should not be possible

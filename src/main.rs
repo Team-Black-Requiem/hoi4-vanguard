@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{fs::{self, File}, io::Write, path::{Path, PathBuf}, time::Instant};
 
 use flexi_logger::{Logger, FileSpec, Duplicate};
@@ -7,8 +9,6 @@ mod utility;
 mod parser;
 mod scope;
 use crate::vfs::{unionfs::*, scanner};
-
-
 
 
 fn write_data_to_file(data: &[u8], filename: &str) -> std::io::Result<()> {
@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Logger::try_with_str("info")?
         .log_to_file(FileSpec::default().directory(PathBuf::from("./logs")))
         .duplicate_to_stderr(Duplicate::Info)  
-        .format_for_files(flexi_logger::colored_with_thread)
+        .format_for_files(flexi_logger::colored_default_format)
         .start()?;
     
     let mut vfs = Vfs::new();
@@ -38,10 +38,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(err) => log::info!("Error listing directory: {:?}", err),
     }
 
-    //pyo3::prepare_freethreaded_python();
     // Test reading a file and writing it to a file
     let start_time = Instant::now();
-    match vfs.read_parseresult(PathBuf::from("common/units/names_divisions/FIN_names_divisions.txt")) {     
+    match vfs.read_parseresult(PathBuf::from("common/units/names_divisions/FIN_names_divisions.txt")) {   
         Ok(parsed_result) => {
             // Convert parsed data to a string or structured output
             let output_string = format!("{:#?}", parsed_result);
@@ -52,6 +51,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         Err(err) => log::info!("Error reading file: {:?}", err),
     }
+    match vfs.read_file(PathBuf::from("common/units/names_divisions/FIN_names_divisions.txt")) {     
+        Ok(data) => {
+            log::info!("Test Node found in {:?}", start_time.elapsed());
+            if let Err(err) = write_data_to_file(&data, "output_file.txt") {
+                log::error!("Error writing to file: {:?}", err);
+            } else {
+                log::info!("Data successfully written to file.");
+            }
+        },
+        Err(err) => log::info!("Error reading file: {:?}", err),
+    }
+
     // Example usage: get file metadata
     let start_time = Instant::now();
     let (size, category) = vfs.file_metadata(PathBuf::from("common/script_enums.txt"))?;
