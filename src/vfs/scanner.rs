@@ -129,22 +129,24 @@ use super::filesystem::FileCategory;
                         // Parse the content using the `all` parser
                         //
                         let parsecontents = str::from_utf8(&contents).unwrap_or_default();
-                        match parser::sharedparsers::all(parsecontents, string_manager) {
-                            Ok((remaining, parsed_result)) => {
-                                layer.add_file(file_name.as_ref(), contents.clone(), parsed_result);
-                                if !remaining.is_empty() {
-                                    log::warn!("Unparsed input remains: {:?}", remaining);
-                                }
-                            }
-                            Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
-                                layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
-                                log::error!("Parsing error in file {:?}: {:?}, kind: {:?}", file_name, truncate_input(e.input, 10), e.code);
-                            }
-                            Err(nom::Err::Incomplete(_)) => {
-                                layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
-                                log::error!("Parsing incomplete. More data needed.");              
-                            }
-                        }
+                        parser::sharedparsers::parse(parsecontents, string_manager);
+                        layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
+                        //match parser::sharedparsers::parse(parsecontents, string_manager) {
+                        //    Ok((remaining, parsed_result)) => {
+                        //        layer.add_file(file_name.as_ref(), contents.clone(), parsed_result);
+                        //        if !remaining.is_empty() {
+                        //            log::warn!("Unparsed input remains: {:?}", remaining);
+                        //        }
+                        //    }
+                        //    Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                        //        layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
+                        //        log::error!("Parsing error in file {:?}: {:?}, kind: {:?}", file_name, truncate_input(e.input, 10), e.code);
+                        //    }
+                        //    Err(nom::Err::Incomplete(_)) => {
+                        //        layer.add_file(file_name.as_ref(), contents.clone(), crate::parser::sharedparsers::AllResult::default());
+                        //        log::error!("Parsing incomplete. More data needed.");              
+                        //    }
+                        //}
                         
                     }
                     FileCategory::Yaml | FileCategory::Lua |
