@@ -1,14 +1,11 @@
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-    hash::Hash,
-    error::Error,
+    collections::{HashMap, HashSet}, error::Error, hash::Hash, path::{Path, PathBuf}, str
 };
 use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
 //use xxhash_rust::xxh3::xxh3_64;
 
-use crate::parser::sharedparsers::AllResult;
+use crate::{parser::sharedparsers::{parse, AllResult}, utility::util::StringResourceManager};
 
 use super::filesystem::*;
 
@@ -28,11 +25,22 @@ impl Directory {
         }
     }
 
-    pub fn add_file<P: Into<PathBuf>>(&mut self, path: P, data: Vec<u8>, parseresult: AllResult) -> u32 {
+    pub fn add_file<P: Into<PathBuf>>(&mut self, path: P, data: Vec<u8>) -> u32 {
         let path = path.into();
         let id = self.generate_id(&path);
-        self.files.insert(id, VfsFile::new(data, parseresult));
+        self.files.insert(id, VfsFile::new(data, AllResult::default()));
         self.path_mapper(&path, id);
+        id
+    }
+
+    pub fn parse_file<P: Into<PathBuf>>(&mut self, path: P, string_manager: &StringResourceManager) -> u32 {
+        let path = path.into();
+        let id = self.resolve_path(&path).unwrap_or_else(|_| self.generate_id(&path));
+        if let Some(file) = self.files.get_mut(&id) {
+            let parseresult = parse(str::from_utf8(&file.raw_data).unwrap_or_default(), path, string_manager);
+            file.set_parsed_data(parseresult);
+
+        }
         id
     }
 
@@ -61,7 +69,7 @@ impl Directory {
 
     pub fn resolve_path(&self, path: &Path) -> Result<u32, DirectoryError> {
         if let Some(id) = self.path_mappings.get(path) {
-            log::info!("Found id: {}", id);
+            //log::info!("Found id: {}", id);
             Ok(*id)
         } else {
             Err(DirectoryError::NotFound)
@@ -72,6 +80,17 @@ impl Directory {
         let id = self.resolve_path(path)?;
         if let Some(data) = self.files.get(&id) {
             Ok(data.raw_data().to_vec())
+        } else {
+            Err(Box::new(DirectoryError::NotFound))
+        }
+    }
+
+    pub fn write_file<P: Into<PathBuf>>(&mut self, path: P, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
+        let path = path.into();
+        let id = self.resolve_path(&path)?;
+        if let Some(file) = self.files.get_mut(&id) {
+            file.raw_data = data;
+            Ok(())
         } else {
             Err(Box::new(DirectoryError::NotFound))
         }

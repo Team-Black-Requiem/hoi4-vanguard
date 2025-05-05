@@ -5,16 +5,16 @@ use nom::{
     combinator::{eof, map, not, opt, peek, recognize},
     error::{context, ParseError},
     multi::{many0, many1},
-    sequence::{delimited, preceded, terminated, tuple},
+    sequence::{delimited, preceded, terminated},
     Err,
-    IResult as NomResult, Slice,
+    IResult as NomResult, Parser,
 };
 use nom_locate::LocatedSpan;
 use log::info;
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, fmt::Debug, ops::Range};
+use std::{cell::RefCell, fmt::Debug, ops::Range, path::PathBuf};
 
-use crate::utility::error::{print_error, Error};
+use crate::utility::error::{print_error, Error, ErrorContext};
 use crate::utility::util;
 use crate::parser::types;
 
@@ -42,13 +42,12 @@ where
 }
 
 fn expect<'a, F, T>(
-    mut parser: F,
-    msg: &'static str,
+    mut parser: F
 ) -> impl FnMut(Span<'a>) -> IResult<'a, Option<T>>
 where
     F: FnMut(Span<'a>) -> IResult<'a, T>,
 {
-    move |input: Span<'a>| match parser(input.clone()) {
+    move |input: Span<'a>| match parser(input) {
         Ok((next, out)) => Ok((next, Some(out))),
         Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => Ok((input, None)),
         Err(e) => Err(e),
@@ -58,7 +57,7 @@ where
 trait ToRange {
     fn to_range(&self) -> Range<usize>;
 }
-impl<'a> ToRange for Span<'a> {
+impl ToRange for Span<'_> {
     fn to_range(&self) -> Range<usize> {
         let start = self.location_offset();
         let end = start + self.fragment().len();
@@ -100,15 +99,14 @@ type Span<'a> = LocatedSpan<&'a str, State<'a>>;
 type IResult<'a, O> = NomResult<Span<'a>, O>;
 
 #[derive(Copy, Clone, Debug)]
-pub struct State<'a>(pub &'a RefCell<Vec<Error>>);
+pub struct State<'a>(pub &'a ErrorContext);
 
-fn ws<'a, F>(parser: F) -> impl FnMut(Span<'a>) -> IResult<'a, &'a str>
+fn ws<'a, F>(mut parser: F) -> impl FnMut(Span<'a>) -> IResult<'a, &'a str>
 where
     F: FnMut(Span<'a>) -> IResult<'a, &'a str>,
 {
-    delimited(multispace0, parser, multispace0)
+    move |input| delimited(multispace0, |i| parser(i), multispace0).parse(input)
 }
-
 fn is_quote_char(c: char) -> bool {
     c == QUOTE_CHAR
 }
@@ -131,22 +129,22 @@ fn is_value_char(c: char) -> bool {
 
 // Match a specific string, followed by optional whitespace
 fn str_parser(s: &'static str) -> impl FnMut(Span) -> IResult<&str> {
-    move |input: Span| terminated(tag(s), multispace0)(input).map(|(next_input, _)| (next_input, s))
+    move |input: Span| terminated(tag(s), multispace0).parse(input).map(|(next_input, _)| (next_input, s))
 }
 
 // Skip a specific string, followed by optional whitespace
 fn str_skip(s: &'static str) -> impl FnMut(Span) -> IResult<()> {
-    move |input: Span| terminated(tag(s), multispace0)(input).map(|(next_input, _)| (next_input, ()))
+    move |input: Span| terminated(tag(s), multispace0).parse(input).map(|(next_input, _)| (next_input, ()))
 }
 
 // Match a specific character, followed by optional whitespace
 fn ch_parser(c: char) -> impl FnMut(Span) -> IResult<char> {
-    move |input: Span| terminated(nom_char(c), multispace0)(input).map(|(next_input, c)| (next_input, c))
+    move |input: Span| terminated(nom_char(c), multispace0).parse(input)
 }
 
 // Skip a specific character, followed by optional whitespace
 fn ch_skip(c: char) -> impl FnMut(Span) -> IResult<()> {
-    move |input: Span| terminated(nom_char(c), multispace0)(input).map(|(next_input, _)| (next_input, ()))
+    move |input: Span| terminated(nom_char(c), multispace0).parse(input).map(|(next_input, _)| (next_input, ()))
 }
 
 /// Matches one or more characters that are NOT '\' or '"'
@@ -165,7 +163,7 @@ pub fn escaped_char(input: Span) -> IResult<'_, &str> {
             tag("\\"),
         )),
         |s: Span| *s.fragment(), // Extract &str from Span
-    )(input)
+    ).parse(input)
 }
 
 fn metaprogramming_char_snippet(input: Span) -> IResult<&str> {
@@ -277,7 +275,7 @@ fn operator(input: Span<'_>) -> IResult<'_, Operator> {
         map(delimited(multispace0, tag("<"), multispace0), |_| Operator::LessThan),
         map(delimited(multispace0, tag(">"), multispace0), |_| Operator::GreaterThan),
         map(delimited(multispace0, tag("="),multispace0), |_| Operator::Equals),
-    ))(input.clone())?;
+    )).parse(input)?;
     Ok((i, (op)))
 }
 
@@ -288,7 +286,7 @@ fn operator_lookahead(input: Span) -> IResult<Span> {
         delimited(multispace0, tag("<"), multispace0),
         delimited(multispace0, tag("!"), multispace0),
         delimited(multispace0, tag("?="), multispace0),
-    )))(input)
+    ))).parse(input)
 }
 
 /// Parses a comment and captures its positional metadata.
@@ -297,7 +295,7 @@ pub fn comment(input: Span) -> IResult<(Range<usize>, String)> {
     let (input, content) = terminated(
         preceded(nom_char('#'), not_line_ending),
         multispace0,
-    )(input)?;
+    ).parse(input)?;
     let range = start.to_range();
     Ok((input, (range, content.trim().to_string())))
 }
@@ -313,16 +311,17 @@ fn key(input: Span) -> IResult<Key> {
     log::debug!("THIS IS KEY. Parsing key: {:?}", truncate_input(&input, 2));
     
     //log::debug!("THIS IS KEY. Parsed key: {:?}", res);
-    parser(input)
+    parser.parse(input)
     
 }
+
 // Key parser that matches a quoted key
 fn key_q(input: Span) -> IResult<Key> {
     log::debug!("Parsing key_q: {:?}", truncate_input(&input, 2));
     map(
         quoted_string, // Use the `quoted_string` parser
         |s: String| Key::new(s), // Wrap the parsed string in a `Key` struct
-    )(input)
+    ).parse(input)
 }
 
 fn value_s<'a>(
@@ -333,7 +332,7 @@ fn value_s<'a>(
 
     // Check for a `"` at the beginning of the string and log a warning
     // we'll make this more robust later
-    if peek(tag::<_, _, nom::error::Error<&str>>("\""))(&input).is_ok() {
+    if peek(tag::<_, _, nom::error::Error<&str>>("\"")).parse(&input).is_ok() {
         log::warn!(
             "Detected a `\"` at the beginning of the string in value_s: {:?}",
             truncate_input(&input, 2)
@@ -346,21 +345,22 @@ fn value_s<'a>(
             delimited(opt(tag("\"")),take_while1(is_value_char),opt(tag("\""))),
             |s: Span| Value::String(string_manager.intern_identifier_token(&s)),
         ),
-    )(input)
+    ).parse(input)
 }
 
 fn value_i(input: Span) -> IResult<Value> {
-    map(take_while_m_n(1, 10, |c: char| c.is_ascii_digit()), |s: Span| Value::Int(s.fragment().parse::<i32>().unwrap()))(input)
+    map(take_while_m_n(1, 10, |c: char| c.is_ascii_digit()), |s: Span| Value::Int(s.fragment().parse::<i32>().unwrap())).parse(input)
 }
 // A parser for floating point numbers (e.g., "123.456")
 fn value_f(input: Span) -> IResult<Value> {
     map(
         recognize(
-            tuple((digit1, char('.'), digit1))
+            (digit1, char('.'), digit1)
         ),
         |s: Span| Value::Float(s.parse::<f64>().unwrap())
-    )(input)
+    ).parse(input)
 }
+
 fn value_b_yes(input: Span) -> IResult<Value> {
     map(
         preceded(
@@ -368,7 +368,7 @@ fn value_b_yes(input: Span) -> IResult<Value> {
             peek(not(satisfy(|c| is_value_char(c) && c != '}'))), // Allow `yes` to be followed by `}` or whitespace
         ),
         |_| Value::Bool(true), // Return `Value::Bool(true)`
-    )(input)
+    ).parse(input)
 }
 
 fn value_b_no(input: Span) -> IResult<Value> {
@@ -378,7 +378,7 @@ fn value_b_no(input: Span) -> IResult<Value> {
             peek(not(satisfy(|c| is_value_char(c) && c != '}'))), // Allow `no` to be followed by `}` or whitespace
         ),
         |_| Value::Bool(false), // Return `Value::Bool(false)`
-    )(input)
+    ).parse(input)
 }
 
 // Match a quoted string (with escape sequences) with additional checks
@@ -415,7 +415,7 @@ fn quoted_string(input: Span) -> IResult<String> {
             ),
         );
 
-        parser(input)
+        parser.parse(input)
 }
 
 fn value_q<'a>(
@@ -429,16 +429,16 @@ fn value_q<'a>(
             let token = string_manager.intern_identifier_token(&s); // Intern the string
             Value::QString(token) // Return it as a Value::QString
         },
-    )(input)
+    ).parse(input)
 }
 
 fn hsv3(input: Span) -> IResult<'_, Value> {
     map(
-        tuple((
+        (
             terminated(terminated(parse_with_position(value_f), multispace0), multispace0),
             terminated(parse_with_position(value_f), multispace0),
             terminated(parse_with_position(value_f), multispace0),
-        )),
+    ),
         |(a, b, c)| {
             Value::Clause(vec![
                 Statement::Value(a.0, a.1),
@@ -446,12 +446,12 @@ fn hsv3(input: Span) -> IResult<'_, Value> {
                 Statement::Value(c.0, c.1),
             ])
         }
-    )(input)
+    ).parse(input)
 }
 
 fn hsv4(input: Span) -> IResult<Value> {
     map(
-        tuple((
+        (
             // First value: apply parse_with_position(value_f), then consume ws twice.
             terminated(terminated(parse_with_position(value_f), multispace0), multispace0),
             // Second value: apply parse_with_position(value_f), then consume ws.
@@ -460,7 +460,7 @@ fn hsv4(input: Span) -> IResult<Value> {
             terminated(parse_with_position(value_f), multispace0),
             // Fourth val
             terminated(parse_with_position(value_f), multispace0),
-        )),
+        ),
         |(a, b, c, d)| {
             Value::Clause(vec![
                 Statement::Value(a.0, a.1),
@@ -469,20 +469,20 @@ fn hsv4(input: Span) -> IResult<Value> {
                 Statement::Value(d.0, d.1)
             ])
         }
-    )(input)
+    ).parse(input)
 }
 
 /// Parser for hsvI (a clause with 3 or 4 float values).
 fn hsv_i(input: Span) -> IResult<Value> {
     map(
-        tuple((
+        (
             // Each value: run parse_with_position(value_f) then consume whitespace.
             terminated(terminated(parse_with_position(value_f), multispace0), multispace0),
             terminated(parse_with_position(value_f), multispace0),
             terminated(parse_with_position(value_f), multispace0),
             // Optional fourth value.
             opt(terminated(parse_with_position(value_f), multispace0)),
-        )),
+        ),
         |(a, b, c, d)| {
             match d {
                 Some(d_val) => Value::Clause(vec![
@@ -498,33 +498,33 @@ fn hsv_i(input: Span) -> IResult<Value> {
                 ]),
             }
         }
-    )(input)
+    ).parse(input)
 }
 
 /// Parser for hsv:
 ///   strSkip "hsv" >>. opt (strSkip "360") >>. hsvI .>> ws
 fn hsv(input: Span) -> IResult<Value> {
     let (input, _) = str_skip("hsv")(input)?;
-    let (input, _) = opt(str_skip("360"))(input)?;
-    terminated(hsv_i, multispace0)(input)
+    let (input, _) = opt(str_skip("360")).parse(input)?;
+    terminated(hsv_i, multispace0).parse(input)
 }
 
 /// Parser for hsvC:
 ///   strSkip "HSV" >>. hsvI .>> ws
 fn hsv_c(input: Span) -> IResult<Value> {
     let (input, _) = str_skip("HSV")(input)?;
-    terminated(hsv_i, multispace0)(input)
+    terminated(hsv_i, multispace0).parse(input)
 }
 
 /// Parser for rgbI (a clause with 3 or 4 integer values).
 fn rgb_i(input: Span) -> IResult<Value> {
     map(
-        tuple((
+        (
             terminated(terminated(parse_with_position(value_i), multispace0), multispace0),
             terminated(parse_with_position(value_i), multispace0),
             terminated(parse_with_position(value_i), multispace0),
             opt(terminated(parse_with_position(value_i), multispace0)),
-        )),
+        ),
         |(a, b, c, d)| {
             match d {
                 Some(d_val) => Value::Clause(vec![
@@ -540,17 +540,17 @@ fn rgb_i(input: Span) -> IResult<Value> {
                 ]),
             }
         }
-    )(input)
+    ).parse(input)
 }
 
 /// Parser for rgb3 (a clause with exactly 3 integer values).
 fn rgb3(input: Span) -> IResult<Value> {
     map(
-        tuple((
+        (
             terminated(terminated(parse_with_position(value_i), multispace0), multispace0),
             terminated(parse_with_position(value_i), multispace0),
             terminated(parse_with_position(value_i), multispace0),
-        )),
+        ),
         |(a, b, c)| {
             Value::Clause(vec![
                 Statement::Value(a.0, a.1),
@@ -558,18 +558,18 @@ fn rgb3(input: Span) -> IResult<Value> {
                 Statement::Value(c.0, c.1),
             ])
         }
-    )(input)
+    ).parse(input)
 }
 
 /// Parser for rgb4 (a clause with exactly 4 integer values).
 fn rgb4(input: Span) -> IResult<Value> {
     map(
-        tuple((
+        (
             terminated(terminated(parse_with_position(value_i), multispace0), multispace0),
             terminated(parse_with_position(value_i), multispace0),
             terminated(parse_with_position(value_i), multispace0),
             terminated(parse_with_position(value_i), multispace0),
-        )),
+        ),
         |(a, b, c, d)| {
             Value::Clause(vec![
                 Statement::Value(a.0, a.1),
@@ -578,21 +578,21 @@ fn rgb4(input: Span) -> IResult<Value> {
                 Statement::Value(d.0, d.1),
             ])
         }
-    )(input)
+    ).parse(input)
 }
 
 /// Parser for rgb:
 ///   strSkip "rgb" >>. rgbI .>> ws
 fn rgb(input: Span) -> IResult<Value> {
     let (input, _) = str_skip("rgb")(input)?;
-    terminated(rgb_i, multispace0)(input)
+    terminated(rgb_i, multispace0).parse(input)
 }
 
 /// Parser for rgbC:
 ///   strSkip "RGB" >>. rgbI .>> ws
 fn rgb_c(input: Span) -> IResult<Value> {
     let (input, _) = str_skip("RGB")(input)?;
-    terminated(rgb_i, multispace0)(input)
+    terminated(rgb_i, multispace0).parse(input)
 }
 
 fn metaprograming<'a>(
@@ -600,7 +600,7 @@ fn metaprograming<'a>(
     string_manager: &'a StringResourceManager,
 ) -> IResult<'a, Value> {
     map(
-        tuple((tag("@\\["), metaprogramming_char_snippet, char(']'))),
+        (tag("@\\["), metaprogramming_char_snippet, char(']')),
         |(start, middle, end_char)| {
             // Concatenate the three pieces.
             let combined = format!("{}{}{}", start, middle, end_char);
@@ -609,18 +609,18 @@ fn metaprograming<'a>(
             // Wrap the interned token in the Value::String variant.
             Value::String(token)
         },
-    )(input)
+    ).parse(input)
 }
 
 fn leaf_value<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -> IResult<'a, (Range<usize>, Value)> {
     log::debug!("Attempting to parse leaf_value from: {:?}", truncate_input(&input, 2));
     
     // Parse a value followed by trailing whitespace.
-    let (input, val) = delimited(multispace0, |i| value(i, string_manager), multispace0)(input)?;
+    let (input, val) = delimited(multispace0, |i| value(i, string_manager), multispace0).parse(input)?;
     
     // Lookahead: ensure the next token is NOT an operator.
     // If an operator is found, `not(peek(operator))` will fail without consuming input.
-    let (input, _) = not(preceded(multispace0,peek(operator)))(input)?;
+    let (input, _) = not(preceded(multispace0,peek(operator))).parse(input)?;
     
     let range = input.to_range(); // Get the range of the input
     
@@ -638,7 +638,7 @@ fn value_block<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -
         // Map comment into a Statement::Comment.
         map(comment, |s| Statement::Comment(s.0, s.1)),
     ));
-    let (input, stmts) = many0(inner)(input)?;
+    let (input, stmts) = many0(inner).parse(input)?;
     Ok((input, Value::Clause(stmts)))
 }
 
@@ -650,19 +650,22 @@ fn value_clause<'a>(
 
     let mut parser = preceded(
         peek(tag("{")),
-        clause(delimited(
-            multispace0,
-            many0(|input: Span<'a>| {
-                log::debug!("Parsing nested statement in value_clause: {:?}", truncate_input(&input, 2));
-                statement(input, string_manager)
-            }),
-            multispace0,
-        )),
+        |input| {
+            clause(|input| {
+                delimited(
+                    multispace0,
+                    many0(|input: Span<'a>| {
+                        log::debug!("Parsing nested statement in value_clause: {:?}", truncate_input(&input, 2));
+                        statement(input, string_manager)
+                    }),
+                    multispace0,
+                ).parse(input)
+            })(input)
+        },
     );
 
-    parser(input).map(|(remaining, stmts)| (remaining, Value::Clause(stmts)))
+    parser.parse(input).map(|(remaining, stmts)| (remaining, Value::Clause(stmts)))
 }
-
 // ==================================================================
 // valueCustom
 // ==================================================================
@@ -717,7 +720,7 @@ fn value<'a>(
         |i| value_s(i, string_manager),
     ));
 
-    parser(input)
+    parser.parse(input)
 }
 
 // ==================================================================
@@ -734,7 +737,7 @@ fn keyvalue<'a>(
     log::debug!("Parsing keyvalue: {:?}", truncate_input(&input, 2));
 
     // Use `peek` to ensure the input starts with a valid key
-    let (input, id) = preceded(peek(alt((key_q, key))), alt((key_q, key)))(input)?;
+    let (input, id) = preceded(peek(alt((key_q, key))), alt((key_q, key))).parse(input)?;
     log::debug!("Parsed key: {:?}", id.to_string());
 
     let (input, op) = operator(input)?;
@@ -743,7 +746,7 @@ fn keyvalue<'a>(
         // Allow an optional comment and newline before the value clause
         // edge case handling
         // might be a terrible idea to implement this way
-        let (input, _) = opt(terminated(comment, multispace0))(input)?;
+        let (input, _) = opt(terminated(comment, multispace0)).parse(input)?;
 
     let (input, val) = value(input, string_manager)?;
     log::debug!("Parsed value: {:?}", val.to_string(string_manager));
@@ -784,7 +787,7 @@ fn statement<'a>(
     let parse_keyvalue = preceded(peek(alt((key_q, key))), |i| keyvalue(i, string_manager));
     
 
-    terminated(alt((parse_comment, parse_leaf_value, parse_keyvalue)), multispace0)(input)
+    terminated(alt((parse_comment, parse_leaf_value, parse_keyvalue)), multispace0).parse(input)
 }
 
 // ==================================================================
@@ -800,7 +803,7 @@ fn statement<'a>(
 
 fn alle<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -> IResult<'a, ParsedFile> {
     multispace0(input)?; // Consume leading whitespace
-    let (input, stmts) = many0(|i| statement(i, string_manager))(input)?;
+    let (input, stmts) = many0(|i| statement(i, string_manager)).parse(input)?;
     let (input, _) = nom::combinator::eof(input)?;
     Ok((input, ParsedFile { statements: stmts }))
 }
@@ -828,7 +831,7 @@ fn valuelist<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -> 
             )),
             multispace0,
         )
-    )(input);
+    ).parse(input);
     
     log::debug!("valuelist parsed: {:?}", result);
     result
@@ -843,7 +846,7 @@ fn statementlist<'a>(input: Span<'a>, string_manager: &'a StringResourceManager)
         return nom::combinator::eof(input).map(|(remaining, _)| (remaining, vec![]));
     }
 
-    let (input, stmts) = many0(|i| statement(i, string_manager))(input)?;
+    let (input, stmts) = many0(|i| statement(i, string_manager)).parse(input)?;
     log::debug!(
         "Remaining input in statementlist (first 2 lines):\n{}",
         truncate_input(&input, 5)
@@ -851,7 +854,7 @@ fn statementlist<'a>(input: Span<'a>, string_manager: &'a StringResourceManager)
 
     // Ensure all input is consumed
     let (input, _) = multispace0(input)?;
-    let (input, _) = nom::combinator::eof(input)?;
+    let (input, _) = nom::combinator::eof.parse(input)?;
     Ok((input, stmts))
 }
 
@@ -869,50 +872,72 @@ impl AllResult {
 }
 
 fn bom(input: Span) -> IResult<()> {
-    opt(tag("\u{feff}"))(input).map(|(next_input, _)| (next_input, ()))
+    opt(tag("\u{feff}")).parse(input).map(|(next_input, _)| (next_input, ()))
 }
 
 pub(crate) fn all<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -> IResult<'a, AllResult> {
-    let (input, _) = multispace0(input)?; // Trim leading whitespace
-
-    if input.is_empty() {
-        log::debug!("Input is empty, checking for EOF.");
-        return nom::combinator::eof(input).map(|(remaining, _)| (remaining, AllResult::default()));
-    }
 
     let (input, _) = bom(input)?; // Consume BOM if present
-    let (input, _) = multispace0(input)?; // Consume leading whitespace
     let (input, result) = alt((
         map(|i| statementlist(i, string_manager), AllResult::Statementlist),
         //map(|i| valuelist(i, string_manager), AllResult::Valuelist),
-    ))(input)?;
-    let (input, _) = multispace0(input)?; // Consume trailing whitespace or newlines
-    let (input, _) = nom::combinator::eof(input)?; // Ensure EOF
+    )).parse(input)?;
     Ok((input, result))
 }
 
-pub fn parse(source: &str, string_manager: &StringResourceManager) -> AllResult {
-    let errors = RefCell::new(Vec::new());
-    let span = Span::new_extra(source, State(&errors));
+pub fn parse_nofile(source: &str, string_manager: &StringResourceManager) -> AllResult {
+    let source = source.trim();
+    let error = ErrorContext {
+        errors: RefCell::new(vec![]),
+        filename: None,
+    };
+    let span = Span::new_extra(source, State(&error));
 
-    let (remaining, stmts) = all(span.clone(), string_manager).unwrap_or_else(|_| (span, AllResult::default()));
+    let (remaining, stmts) = all(span, string_manager).unwrap_or_else(|_| (span, AllResult::default()));
 
     // Report any trailing unparsed input
     if !remaining.fragment().trim().is_empty() {
-        remaining.extra.0.borrow_mut().push(Error(
+        remaining.extra.0.errors.borrow_mut().push(Error(
             remaining.to_range(),
             "unexpected trailing input".to_string(),
         ));
     }
 
-    let collected_errors = errors.into_inner();
+    let collected_errors = error.errors.into_inner();
     if !collected_errors.is_empty() {
         eprintln!("\n{} parsing errors found:\n", collected_errors.len());
         for err in &collected_errors {
-            print_error(source, err);
+            print_error(source, err, error.filename.clone());
         }
     }
+    stmts
+}
 
+pub fn parse(source: &str, file: PathBuf, string_manager: &StringResourceManager) -> AllResult {
+    let source = source.trim();
+    let error = ErrorContext {
+        errors: RefCell::new(vec![]),
+        filename: Some(file), 
+    };
+    let span = Span::new_extra(source, State(&error));
+
+    let (remaining, stmts) = all(span, string_manager).unwrap_or_else(|_| (span, AllResult::default()));
+
+    // Report any trailing unparsed input
+    if !remaining.fragment().trim().is_empty() {
+        remaining.extra.0.errors.borrow_mut().push(Error(
+            remaining.to_range(),
+            "unexpected trailing input".to_string(),
+        ));
+    }
+
+    let collected_errors = error.errors.into_inner();
+    if !collected_errors.is_empty() {
+        eprintln!("\n{} parsing errors found:\n", collected_errors.len());
+        for err in &collected_errors {
+            print_error(source, err, error.filename.clone());
+        }
+    }
     stmts
 }
 

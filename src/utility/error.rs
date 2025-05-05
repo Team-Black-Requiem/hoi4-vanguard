@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{cell::RefCell, ops::Range, path::PathBuf};
 
 use colored::Colorize;
 
@@ -59,11 +59,17 @@ pub fn byte_range_to_display_range(source: &str, byte_range: Range<usize>) -> Di
 #[derive(Debug, Clone)]
 pub struct Error(pub Range<usize>, pub String);
 
+#[derive(Debug)]
+pub struct ErrorContext {
+    pub errors: RefCell<Vec<Error>>, // Already present
+    pub filename: Option<PathBuf>,    // NEW: optional filename
+}
 
-pub fn print_error(source: &str, err: &Error) {
+
+pub fn print_error(source: &str, err: &Error, file: Option<PathBuf>) {
     let DisplayRange { start, end } = byte_range_to_display_range(source, err.0.clone());
 
-    println!(
+    log::error!(
         "{}: {}\n  --> line {}:{}",
         "error".red().bold(),
         err.1,
@@ -71,8 +77,11 @@ pub fn print_error(source: &str, err: &Error) {
         start.column
     );
 
+    log::error!("   | {}", (file.unwrap().to_str().unwrap()).red());
+
     if let Some(line_text) = source.lines().nth(start.line - 1) {
-        println!("   |\n{:>3} | {}", start.line, line_text);
+        log::error!("   |");
+        log::error!("{:>3}| {}", start.line, line_text);
 
         let underline_len = if start.line == end.line {
             (end.column - start.column).max(1)
@@ -80,11 +89,15 @@ pub fn print_error(source: &str, err: &Error) {
             1
         };
 
-        let underline = " ".repeat(start.column - 1) + &"^".repeat(underline_len);
-        println!("   | {}", underline.red());
+        let underline = format!(
+            "{}{}",
+            " ".repeat(start.column - 1),
+            "^".repeat(underline_len)
+        );
+        log::error!("   | {}", underline.red());
     } else {
-        println!("   | <line not available>");
+        log::error!("   | <line not available>");
     }
 
-    println!();
+    log::error!("   | {}", "error".red().bold());
 }
