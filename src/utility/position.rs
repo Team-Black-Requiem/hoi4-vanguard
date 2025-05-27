@@ -6,23 +6,6 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-// Bit manipulation functions
-const fn pown32(n: i32) -> i32 {
-    if n == 0 { 1 } else { pown32(n - 1) | (1 << (n - 1)) }
-}
-
-const fn pown64(n: i64) -> i64 {
-    if n == 0 { 1 } else { pown64(n - 1) | (1 << (n - 1)) }
-}
-
-const fn mask32(m: i32, n: i32) -> i32 {
-    pown32(n) << m
-}
-
-const fn mask64(m: i64, n: i64) -> i64 {
-    pown64(n) << m
-}
-
 // position struct
 #[derive(Clone, Copy, PartialOrd, Ord, Eq)]
 pub struct Pos {

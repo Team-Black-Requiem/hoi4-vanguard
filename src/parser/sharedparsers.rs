@@ -1,25 +1,26 @@
+use log::{debug, info, warn};
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while1, take_while_m_n},
     character::complete::{char, char as nom_char, digit1, multispace0, multispace1, not_line_ending, satisfy},
-    combinator::{eof, map, not, opt, peek, recognize},
+    combinator::{map, not, opt, peek, recognize},
     error::{context, ParseError},
     multi::{many0, many1},
     sequence::{delimited, preceded, terminated},
-    Err,
     IResult as NomResult, Parser,
 };
 use nom_locate::LocatedSpan;
-use log::info;
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, fmt::Debug, ops::Range, path::PathBuf};
+use std::{fmt::Debug, ops::Range};
 
-use crate::utility::error::{print_error, Error, ErrorContext};
+use crate::utility::error::{Error, ErrorContext};
 use crate::utility::util;
 use crate::parser::types;
 
 use self::util::*;
 use self::types::*;
+
+// Utility functions
 
 /// A wrapper function to add logging to a parser.
 pub fn with_logging<'a, F, O, E>(
@@ -41,15 +42,55 @@ where
     }
 }
 
-fn expect<'a, F, T>(
-    mut parser: F
-) -> impl FnMut(Span<'a>) -> IResult<'a, Option<T>>
+
+pub(crate) type Span<'a> = LocatedSpan<&'a str, State<'a>>;
+type IResult<'a, O> = NomResult<Span<'a>, O>;
+
+#[derive(Copy, Clone, Debug)]
+pub struct State<'a>(pub &'a ErrorContext);
+
+impl State<'_> {
+    /// Pushes an error onto the errors stack while still allowing parsing to continue.
+    pub fn report_error(&self, error: Error) {
+        self.0.add_error(error);
+    }
+}
+
+/// Evaluate `parser` and wrap the result in a `Some(_)`. Otherwise,
+/// emit the  provided `error_msg` and return a `None` while allowing
+/// parsing to continue.
+fn expect<'a, F, E, T>(mut parser: F, error_msg: E) -> impl FnMut(Span<'a>) -> IResult<'a, Option<T>>
+where
+    F: FnMut(Span<'a>) -> IResult<'a, T>,
+    E: ToString,
+{
+    move |input| match parser(input) {
+        Ok((remaining, out)) => Ok((remaining, Some(out))),
+        Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+            let err = Error(input.to_range(), error_msg.to_string());
+            input.extra.report_error(err);
+            Ok((input, None)) // Parsing failed, but keep going.
+        }
+        Err(err) => Err(err),
+    }
+}
+
+pub fn expect_with_error<'a, F, T>(
+    mut parser: F,
+    msg: &'static str,
+) -> impl FnMut(Span<'a>) -> IResult<'a, T>
 where
     F: FnMut(Span<'a>) -> IResult<'a, T>,
 {
     move |input: Span<'a>| match parser(input) {
-        Ok((next, out)) => Ok((next, Some(out))),
-        Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => Ok((input, None)),
+        Ok((next, out)) => Ok((next, out)),
+        Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => {
+            input.extra.0.errors.borrow_mut().push(Error(
+                input.to_range(),
+                msg.to_string(),
+            ));
+            Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Alt)))
+        }
         Err(e) => Err(e),
     }
 }
@@ -93,20 +134,13 @@ const VALUE_CHAR_ARRAY: &[char] = &[
 
 const QUOTE_CHAR: char = '"';
 
-// Utility functions
-
-type Span<'a> = LocatedSpan<&'a str, State<'a>>;
-type IResult<'a, O> = NomResult<Span<'a>, O>;
-
-#[derive(Copy, Clone, Debug)]
-pub struct State<'a>(pub &'a ErrorContext);
-
-fn ws<'a, F>(mut parser: F) -> impl FnMut(Span<'a>) -> IResult<'a, &'a str>
+fn ws<'a, F, O>(mut parser: F) -> impl FnMut(Span<'a>) -> IResult<'a, O>
 where
-    F: FnMut(Span<'a>) -> IResult<'a, &'a str>,
+    F: FnMut(Span<'a>) -> IResult<'a, O>,
 {
-    move |input| delimited(multispace0, |i| parser(i), multispace0).parse(input)
+    move |input| delimited(multispace0, &mut parser, multispace0).parse(input)
 }
+
 fn is_quote_char(c: char) -> bool {
     c == QUOTE_CHAR
 }
@@ -149,14 +183,14 @@ fn ch_skip(c: char) -> impl FnMut(Span) -> IResult<()> {
 
 /// Matches one or more characters that are NOT '\' or '"'
 fn quoted_char_snippet(input: Span) -> IResult<&str> {
-    log::debug!("THIS IS QUOTED_CHAR_SNIPPET. Parsing quoted_char_snippet: {:?}", truncate_input(&input, 2));
+    //debug!("THIS IS QUOTED_CHAR_SNIPPET. Parsing quoted_char_snippet: {:?}", truncate_input(&input, 2));
     let (input, chars) = take_while1(|c: char| c != '\\' && c != '"')(input)?;
     Ok((input, chars.fragment()))
 }
 
 /// Matches an escaped sequence: either `\"` or `\`
 pub fn escaped_char(input: Span) -> IResult<'_, &str> {
-    log::debug!("THIS IS ESCAPED_CHAR. Parsing escaped_char: {:?}", truncate_input(&input, 2));
+    //debug!("THIS IS ESCAPED_CHAR. Parsing escaped_char: {:?}", truncate_input(&input, 2));
     map(
         alt((
             tag("\\\""),
@@ -184,7 +218,7 @@ where
     H: FnMut(Span<'a>) -> IResult<'a, O2>,
 {
     move |input: Span| {
-        log::debug!("Parsing between_l ({}): {:?}", label, truncate_input(&input, 2));
+        //debug!("Parsing between_l ({}): {:?}", label, truncate_input(&input, 2));
 
         // Match the opening delimiter
         let (input, _) = popen(input)?;
@@ -195,14 +229,14 @@ where
         // Attempt to match the closing delimiter
         match pclose(remaining) {
             Ok((remaining, _)) => {
-                log::debug!("Successfully matched closing delimiter for {}", label);
+                //debug!("Successfully matched closing delimiter for {}", label);
                 Ok((remaining, output_inner))
             }
             Err(_) => {
                 // Check if the remaining input is EOF
                 match nom::combinator::eof(remaining) {
                     Ok((remaining, _)) => {
-                        log::warn!(
+                        warn!(
                             "Unclosed top-level bracket detected at EOF for {}. Treating it as implicitly closed.",
                             label
                         );
@@ -265,27 +299,27 @@ where
 }
 
 fn operator(input: Span<'_>) -> IResult<'_, Operator> {
-    log::debug!("THIS IS OPERATOR. Parsing operator: {:?}", truncate_input(input.fragment(), 2));
+    //debug!("THIS IS OPERATOR. Parsing operator: {:?}", truncate_input(input.fragment(), 2));
     let (i, op) = alt((
-        map(delimited(multispace0, tag("<="), multispace0), |_| Operator::LessThanOrEqual),
-        map(delimited(multispace0,tag(">="), multispace0), |_| Operator::GreaterThanOrEqual),
-        map(delimited(multispace0,tag("!="), multispace0), |_| Operator::NotEqual),
-        map(delimited(multispace0, tag("=="), multispace0), |_| Operator::EqualEqual),
-        map(delimited(multispace0,tag("?="),multispace0), |_| Operator::QuestionEqual),
-        map(delimited(multispace0, tag("<"), multispace0), |_| Operator::LessThan),
-        map(delimited(multispace0, tag(">"), multispace0), |_| Operator::GreaterThan),
-        map(delimited(multispace0, tag("="),multispace0), |_| Operator::Equals),
+        map(ws(tag("<=")), |_| Operator::LessThanOrEqual),
+        map(ws(tag(">=")), |_| Operator::GreaterThanOrEqual),
+        map(ws(tag("!=")), |_| Operator::NotEqual),
+        map(ws(tag("==")), |_| Operator::EqualEqual),
+        map(ws(tag("?=")), |_| Operator::QuestionEqual),
+        map(ws(tag("<")), |_| Operator::LessThan),
+        map(ws(tag(">")), |_| Operator::GreaterThan),
+        map(ws(tag("=")), |_| Operator::Equals),
     )).parse(input)?;
-    Ok((i, (op)))
+    Ok((i, op))
 }
 
 fn operator_lookahead(input: Span) -> IResult<Span> {
     peek(alt((
-        delimited(multispace0, tag("="), multispace0),
-        delimited(multispace0, tag(">"), multispace0),
-        delimited(multispace0, tag("<"), multispace0),
-        delimited(multispace0, tag("!"), multispace0),
-        delimited(multispace0, tag("?="), multispace0),
+        ws(tag("=")),
+        ws(tag(">")),
+        ws(tag("<")),
+        ws(tag("!")),
+        ws(tag("?=")),
     ))).parse(input)
 }
 
@@ -308,32 +342,32 @@ fn key(input: Span) -> IResult<Key> {
         |s: Span| Key::new(s.to_string()),
     );
     let mut parser = preceded(multispace0, key_parser); // Skip leading whitespace
-    log::debug!("THIS IS KEY. Parsing key: {:?}", truncate_input(&input, 2));
+    //debug!("THIS IS KEY. Parsing key: {:?}", truncate_input(&input, 2));
     
-    //log::debug!("THIS IS KEY. Parsed key: {:?}", res);
+    //debug!("THIS IS KEY. Parsed key: {:?}", res);
     parser.parse(input)
     
 }
 
 // Key parser that matches a quoted key
 fn key_q(input: Span) -> IResult<Key> {
-    log::debug!("Parsing key_q: {:?}", truncate_input(&input, 2));
+    //debug!("Parsing key_q: {:?}", truncate_input(&input, 2));
     map(
         quoted_string, // Use the `quoted_string` parser
         |s: String| Key::new(s), // Wrap the parsed string in a `Key` struct
     ).parse(input)
 }
 
-fn value_s<'a>(
+fn value_s_old<'a>(
     input: Span<'a>,
     string_manager: &'a StringResourceManager,
 ) -> IResult<'a, Value> {
-    log::debug!("THIS IS VALUE_S. Parsing value_s: {:?}", truncate_input(&input, 2));
+    //debug!("THIS IS VALUE_S. Parsing value_s: {:?}", truncate_input(&input, 2));
 
     // Check for a `"` at the beginning of the string and log a warning
     // we'll make this more robust later
     if peek(tag::<_, _, nom::error::Error<&str>>("\"")).parse(&input).is_ok() {
-        log::warn!(
+        warn!(
             "Detected a `\"` at the beginning of the string in value_s: {:?}",
             truncate_input(&input, 2)
         );
@@ -344,6 +378,46 @@ fn value_s<'a>(
             // Use `delimited` to discard the `"` at the beginning and end of the because if its here it escaped from value_q
             delimited(opt(tag("\"")),take_while1(is_value_char),opt(tag("\""))),
             |s: Span| Value::String(string_manager.intern_identifier_token(&s)),
+        ),
+    ).parse(input)
+}
+
+fn value_s<'a>(
+    input: Span<'a>,
+    string_manager: &'a StringResourceManager,
+) -> IResult<'a, Value> {
+    //debug!("THIS IS VALUE_S. Parsing value_s: {:?}", truncate_input(&input, 2));
+
+    if peek(tag::<_, _, nom::error::Error<Span>>("\"")).parse(input).is_ok() {
+        warn!(
+            "Detected a `\"` at the beginning of the string in value_s: {:?}",
+            truncate_input(&input, 2)
+        );
+    }
+
+    context(
+        "string value",
+        map(
+            delimited(
+                opt(tag("\"")),
+                recognize(alt((
+                    take_while1(is_value_char),
+                    map(
+                        take_while1(|c: char| !c.is_whitespace() && c != '#' && c != '\n' && c != '\r' && c != '\"' && c != '{' && c != '}'),
+                        |s: Span<'a>| {
+                            // Pull out the error context from the span's state
+                            let error_ctx = s.extra.0;
+                            let start = s.location_offset();
+                            let end = start + s.fragment().len();
+                            let msg = format!("Unexpected character in string: '{}'", s.fragment());
+                            error_ctx.add_error(Error(start..end, msg));
+                            s
+                        }
+                    ),
+                ))),
+                opt(tag("\""))
+            ),
+            |s: Span<'a>| Value::String(string_manager.intern_identifier_token(&s)),
         ),
     ).parse(input)
 }
@@ -388,7 +462,7 @@ fn value_b_no(input: Span) -> IResult<Value> {
 // or vice versa
 // better then the alternative of not enforcing string validity at all
 fn quoted_string(input: Span) -> IResult<String> {
-    log::debug!("Parsing quoted_string: {:?}", truncate_input(&input, 2));
+    //debug!("Parsing quoted_string: {:?}", truncate_input(&input, 2));
     let mut parser = delimited(
             char('"'), // Match the opening quote
             map(
@@ -422,7 +496,7 @@ fn value_q<'a>(
     input: Span<'a>,
     string_manager: &StringResourceManager,
 ) -> IResult<'a, Value> {
-    log::debug!("THIS IS VALUE_Q. Parsing value_q: {:?}", truncate_input(&input, 2));
+    //debug!("THIS IS VALUE_Q. Parsing value_q: {:?}", truncate_input(&input, 2));
     map(
         quoted_string, // Parse the quoted string
         |s: String| {
@@ -613,10 +687,10 @@ fn metaprograming<'a>(
 }
 
 fn leaf_value<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -> IResult<'a, (Range<usize>, Value)> {
-    log::debug!("Attempting to parse leaf_value from: {:?}", truncate_input(&input, 2));
+    //debug!("Attempting to parse leaf_value from: {:?}", truncate_input(&input, 2));
     
     // Parse a value followed by trailing whitespace.
-    let (input, val) = delimited(multispace0, |i| value(i, string_manager), multispace0).parse(input)?;
+    let (input, val) = ws(|i| value(i, string_manager)).parse(input)?;
     
     // Lookahead: ensure the next token is NOT an operator.
     // If an operator is found, `not(peek(operator))` will fail without consuming input.
@@ -624,7 +698,7 @@ fn leaf_value<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) ->
     
     let range = input.to_range(); // Get the range of the input
     
-    log::debug!("Returning leaf_value: {:?}", (range.clone(), &val));
+    //debug!("Returning leaf_value: {:?}", (range.clone(), &val));
     Ok((input, (range, val)))
 }
 
@@ -646,7 +720,7 @@ fn value_clause<'a>(
     input: Span<'a>,
     string_manager: &'a StringResourceManager,
 ) -> IResult<'a, Value> {
-    log::debug!("Parsing value_clause: {:?}", truncate_input(&input, 5));
+    //debug!("Parsing value_clause: {:?}", truncate_input(&input, 5));
 
     let mut parser = preceded(
         peek(tag("{")),
@@ -655,7 +729,7 @@ fn value_clause<'a>(
                 delimited(
                     multispace0,
                     many0(|input: Span<'a>| {
-                        log::debug!("Parsing nested statement in value_clause: {:?}", truncate_input(&input, 2));
+                        //debug!("Parsing nested statement in value_clause: {:?}", truncate_input(&input, 2));
                         statement(input, string_manager)
                     }),
                     multispace0,
@@ -694,29 +768,32 @@ fn value<'a>(
     string_manager: &'a StringResourceManager,
 ) -> IResult<'a, Value> {
     if input.trim().is_empty() {
-        log::debug!("Input is empty, returning an error.");
+        //debug!("Input is empty, returning an error.");
         return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Eof)));
     }
-    log::debug!("Parsing value: {:?}", truncate_input(&input, 2));
+    //debug!("Parsing value: {:?}", truncate_input(&input, 2));
 
     let mut parser = alt((
         // Use `peek` to check for specific starting characters or prefixes
         preceded(peek(tag("{")), |i| {
-            log::debug!("Matched peek for value_clause");
+            //debug!("Matched peek for value_clause");
             value_clause(i, string_manager)}),
         preceded(peek(tag("\"")), |i| value_q(i, string_manager)),
         preceded(
             peek(satisfy(|c| c.is_ascii_digit() || c == '-')),
-            alt((value_f, value_i, |i| value_s(i, string_manager))),
+            alt((
+                value_f,
+                value_i,
+                |i| value_s(i, string_manager),
+            )),
         ),
+        preceded(peek(tag("yes")), value_b_yes),
+        preceded(peek(tag("no")), value_b_no),
+        preceded(peek(tag("@\\")), |i| metaprograming(i, string_manager)),
         preceded(peek(tag("rgb")), rgb),
         preceded(peek(tag("RGB")), rgb_c),
         preceded(peek(tag("hsv")), hsv),
         preceded(peek(tag("HSV")), hsv_c),
-        preceded(peek(tag("yes")), value_b_yes),
-        preceded(peek(tag("no")), value_b_no),
-        preceded(peek(tag("@\\")), |i| metaprograming(i, string_manager)),
-        // Fallback to value_s checking for unbalanced quotes before parsing
         |i| value_s(i, string_manager),
     ));
 
@@ -734,22 +811,34 @@ fn keyvalue<'a>(
     input: Span<'a>,
     string_manager: &'a StringResourceManager,
 ) -> IResult<'a, Statement> {
-    log::debug!("Parsing keyvalue: {:?}", truncate_input(&input, 2));
+    //debug!("Parsing keyvalue: {:?}", truncate_input(&input, 2));
 
     // Use `peek` to ensure the input starts with a valid key
     let (input, id) = preceded(peek(alt((key_q, key))), alt((key_q, key))).parse(input)?;
-    log::debug!("Parsed key: {:?}", id.to_string());
+    //debug!("Parsed key: {:?}", id.to_string());
 
     let (input, op) = operator(input)?;
-    log::debug!("Parsed operator: {:?}", op);
+    //debug!("Parsed operator: {:?}", op);
 
         // Allow an optional comment and newline before the value clause
         // edge case handling
         // might be a terrible idea to implement this way
         let (input, _) = opt(terminated(comment, multispace0)).parse(input)?;
 
-    let (input, val) = value(input, string_manager)?;
-    log::debug!("Parsed value: {:?}", val.to_string(string_manager));
+    // Try to parse the value, but if it fails, emit a specific error
+    let value_result = value(input, string_manager);
+    let (input, val) = match value_result {
+        Ok((input, val)) => (input, val),
+        Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => {
+            // Add a specific error for missing value
+            let msg = format!("Missing value for key: '{}'", id);
+            input.extra.0.add_error(Error(input.to_range(), msg));
+            return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Alt)));
+        }
+        Err(e) => return Err(e),
+    };
+    
+    //debug!("Parsed value: {:?}", val.to_string(string_manager));
 
     let range = input.to_range();
     let kv_item = KeyValueItem {
@@ -757,7 +846,7 @@ fn keyvalue<'a>(
         value: val,
         operator: op,
     };
-    log::debug!("Created KeyValueItem: {:?}", kv_item);
+    //debug!("Created KeyValueItem: {:?}", kv_item);
 
     Ok((input, Statement::KeyValue(PosKeyValue { range, kv_item })))
 }
@@ -769,13 +858,13 @@ fn statement<'a>(
     let (input, _) = multispace0(input)?;
 
     if input.fragment().is_empty() {
-        log::debug!("Input is empty, returning eof error to escape.");
+        //debug!("Input is empty, returning eof error to escape.");
         return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Eof)));
     }
-    log::debug!("Parsing statement: {:?}", truncate_input(&input, 2));
+    //debug!("Parsing statement: {:?}", truncate_input(&input, 2));
 
     let parse_comment = preceded(peek(tag("#")), map(comment, |s| {
-        log::debug!("Parsed comment: {:?}", s);
+        //debug!("Parsed comment: {:?}", s);
         Statement::Comment(s.0, s.1)
     }));
 
@@ -799,7 +888,7 @@ fn statement<'a>(
 // statementlist = many statement .>> eof
 // all = ws >>. ((attempt valuelist) <|> statementlist)
 //
-// We define ParsedFile and AllResult accordingly.
+// We define ParsedFile and Expr accordingly.
 
 fn alle<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -> IResult<'a, ParsedFile> {
     multispace0(input)?; // Consume leading whitespace
@@ -833,7 +922,7 @@ fn valuelist<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -> 
         )
     ).parse(input);
     
-    log::debug!("valuelist parsed: {:?}", result);
+    //debug!("valuelist parsed: {:?}", result);
     result
 }
 
@@ -842,15 +931,15 @@ fn statementlist<'a>(input: Span<'a>, string_manager: &'a StringResourceManager)
     let (input, _) = multispace0(input)?;
 
     if input.fragment().is_empty() {
-        log::debug!("Input is empty, checking for EOF.");
+        //debug!("Input is empty, checking for EOF.");
         return nom::combinator::eof(input).map(|(remaining, _)| (remaining, vec![]));
     }
 
     let (input, stmts) = many0(|i| statement(i, string_manager)).parse(input)?;
-    log::debug!(
-        "Remaining input in statementlist (first 2 lines):\n{}",
-        truncate_input(&input, 5)
-    );
+    //debug!(
+    //    "Remaining input in statementlist (first 2 lines):\n{}",
+    //    truncate_input(&input, 5)
+    //);
 
     // Ensure all input is consumed
     let (input, _) = multispace0(input)?;
@@ -860,14 +949,14 @@ fn statementlist<'a>(input: Span<'a>, string_manager: &'a StringResourceManager)
 
 // For the top–level parser “all”, we assume that if valuelist fails we try statementlist.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) enum AllResult {
+pub(crate) enum Expr {
     Valuelist(Vec<Statement>),
     Statementlist(Vec<Statement>),
 }
 
-impl AllResult {
+impl Expr {
     pub fn default() -> Self {
-        AllResult::Statementlist(vec![])
+        Expr::Statementlist(vec![])
     }
 }
 
@@ -875,278 +964,66 @@ fn bom(input: Span) -> IResult<()> {
     opt(tag("\u{feff}")).parse(input).map(|(next_input, _)| (next_input, ()))
 }
 
-pub(crate) fn all<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -> IResult<'a, AllResult> {
+pub(crate) fn all<'a>(input: Span<'a>, string_manager: &'a StringResourceManager) -> IResult<'a, Expr> {
 
     let (input, _) = bom(input)?; // Consume BOM if present
     let (input, result) = alt((
-        map(|i| statementlist(i, string_manager), AllResult::Statementlist),
-        //map(|i| valuelist(i, string_manager), AllResult::Valuelist),
+        map(|i| statementlist(i, string_manager), Expr::Statementlist),
+        //map(|i| valuelist(i, string_manager), Expr::Valuelist),
     )).parse(input)?;
     Ok((input, result))
 }
 
-pub fn parse_nofile(source: &str, string_manager: &StringResourceManager) -> AllResult {
+pub fn parse_raw(source: &str, string_manager: &StringResourceManager) -> (Expr, Vec<Error>) {
     let source = source.trim();
-    let error = ErrorContext {
-        errors: RefCell::new(vec![]),
-        filename: None,
-    };
-    let span = Span::new_extra(source, State(&error));
+    let error_ctx = ErrorContext::new();
+    let span = Span::new_extra(source, State(&error_ctx));
 
-    let (remaining, stmts) = all(span, string_manager).unwrap_or_else(|_| (span, AllResult::default()));
+    let (remaining, stmts) = all(span, string_manager).expect("Parsing failed");
 
     // Report any trailing unparsed input
     if !remaining.fragment().trim().is_empty() {
-        remaining.extra.0.errors.borrow_mut().push(Error(
+        remaining.extra.0.add_error(Error(
             remaining.to_range(),
             "unexpected trailing input".to_string(),
         ));
     }
 
-    let collected_errors = error.errors.into_inner();
-    if !collected_errors.is_empty() {
-        eprintln!("\n{} parsing errors found:\n", collected_errors.len());
-        for err in &collected_errors {
-            print_error(source, err, error.filename.clone());
-        }
-    }
-    stmts
+    (stmts, error_ctx.errors.into_inner())
 }
 
-pub fn parse(source: &str, file: PathBuf, string_manager: &StringResourceManager) -> AllResult {
+pub fn parse(source: &str, string_manager: &StringResourceManager) -> (Expr, Vec<Error>) {
     let source = source.trim();
-    let error = ErrorContext {
-        errors: RefCell::new(vec![]),
-        filename: Some(file), 
-    };
-    let span = Span::new_extra(source, State(&error));
 
-    let (remaining, stmts) = all(span, string_manager).unwrap_or_else(|_| (span, AllResult::default()));
+    let error_ctx = ErrorContext::new();
+    let span = Span::new_extra(source, State(&error_ctx));
 
-    // Report any trailing unparsed input
-    if !remaining.fragment().trim().is_empty() {
-        remaining.extra.0.errors.borrow_mut().push(Error(
-            remaining.to_range(),
-            "unexpected trailing input".to_string(),
-        ));
-    }
-
-    let collected_errors = error.errors.into_inner();
-    if !collected_errors.is_empty() {
-        eprintln!("\n{} parsing errors found:\n", collected_errors.len());
-        for err in &collected_errors {
-            print_error(source, err, error.filename.clone());
+    // Run the parser
+    match all(span, string_manager) {
+        Ok((remaining, parsed_result)) => {
+            // Check for unparsed input
+            if !remaining.fragment().trim().is_empty() {
+                remaining.extra.0.add_error(Error(
+                    remaining.to_range(),
+                    "unexpected trailing input".into(),
+                ));
+            }
+            (parsed_result, error_ctx.errors.into_inner())
+        }
+        Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => {
+            error_ctx.add_error(Error(
+                span.to_range(),
+                "Parsing failed - check syntax for this file".into()
+            ));
+            (Expr::default(), error_ctx.errors.into_inner())
+        }
+        Err(nom::Err::Incomplete(_)) => {
+            error_ctx.add_error(Error(
+                span.to_range(),
+                "input incomplete and more data is needed".into()
+            ));
+            (Expr::default(), error_ctx.errors.into_inner())
         }
     }
-    stmts
-}
 
-//#[test]
-//fn test_single_line_clause() {
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"{ has_dlc = "No Step Back" }"#;
-//    let result = value_clause(input, &string_manager);
-//    assert!(result.is_ok());
-//}
-//
-//#[test]
-//fn test_multi_line_clause() {
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"{
-//        original_tag = SOV
-//        has_dlc = "La Resistance"
-//    }"#;
-//    let result = value_clause(input, &string_manager);
-//    assert!(result.is_ok());
-//}
-//
-//#[test]
-//fn test_nested_enable_block() {
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"{
-//
-//    	allowed = { has_dlc = "No Step Back" }
-//    	enable = {
-//    		SOV = { SOV_is_exiles = yes}
-//    		NOT = {
-//    			tag = SOV
-//    		}
-//    	}
-//    }
-//    "#;
-//    let result = value_clause(input, &string_manager);
-//    assert!(result.is_ok(), "Failed to parse nested enable block: {:?}", result);
-//}
-//
-//#[test]
-//fn test_value_clause_simple() {
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"{ key = value }"#;
-//    let result = value_clause(input, &string_manager);
-//    assert!(result.is_ok(), "Failed to parse simple clause: {:?}", result);
-//}
-//
-//#[test]
-//fn test_value_clause_nested() {
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"{ key = { nested_key = nested_value } }"#;
-//    let result = value_clause(input, &string_manager);
-//    assert!(result.is_ok(), "Failed to parse nested clause: {:?}", result);
-//}
-//
-//#[test]
-//fn test_value_clause_complex() {
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"{ key = { nested_key = { deep_key = deep_value } } }"#;
-//    let result = value_clause(input, &string_manager);
-//    assert!(result.is_ok(), "Failed to parse complex clause: {:?}", result);
-//}
-//
-//#[test]
-//fn test_between_l_with_nested_input() {
-//    let input = r#"{
-//
-//        allowed = { has_dlc = "No Step Back" }
-//        enable = {
-//            SOV = { SOV_is_exiles = yes}
-//            NOT = {
-//                tag = SOV
-//            }
-//        }
-//    }"#;
-//
-//    // Define a recursive parser for the inner content
-//    fn recursive_inner_parser(input: &str) -> IResult<String> {
-//        map(
-//            many0(alt((
-//                // Match nested braces recursively
-//                map(
-//                    between_l(
-//                        nom::character::complete::char('{'),
-//                        nom::character::complete::char('}'),
-//                        recursive_inner_parser,
-//                        "nested_braces",
-//                    ),
-//                    |nested| format!("{{{}}}", nested),
-//                ),
-//                // Match any other characters
-//                map(is_not("{}"), |s: &str| s.to_string()),
-//            ))),
-//            |parts| parts.concat(), // Combine all parts into a single string
-//        )(input)
-//    }
-//
-//    // Use `between_l` to parse the content between `{` and `}`
-//    let mut parser = between_l(
-//        nom::character::complete::char('{'),
-//        nom::character::complete::char('}'),
-//        recursive_inner_parser,
-//        "test_between_l",
-//    );
-//
-//    let result = parser(input);
-//
-//    // Assert that the result is successful
-//    assert!(result.is_ok(), "Failed to parse input with between_l: {:?}", result);
-//
-//    // Optionally, print the parsed result for debugging
-//    if let Ok((remaining, parsed)) = result {
-//        println!("Remaining input: {:?}", remaining);
-//        println!("Parsed content: {:?}", parsed);
-//    }
-//}
-//
-//#[test]
-//fn test_escaped_char() {
-//    // Initialize the logger for the test
-//    let _ = flexi_logger::Logger::try_with_str("debug").unwrap()
-//    .log_to_file(flexi_logger::FileSpec::default().directory(std::path::PathBuf::from(".")))
-//    .duplicate_to_stderr(flexi_logger::Duplicate::Info)  
-//    .format_for_files(flexi_logger::colored_with_thread)
-//    .start();
-//
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"
-//        create_unit = {
-//            division = "division_template =\"Pashtun Levy\" start_experience_factor = 0.4 start_equipment_factor = 1.0"
-//            owner = AFG
-//            count = 1			
-//            prioritize_location = 10737
-//        }
-//    "#;
-//    let result = all(input, &string_manager);
-//    assert!(result.is_ok(), "Parsing failed: {:?}", result);
-//}
-//
-//#[test]
-//fn test_unclosed_top_level_bracket() {
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"
-//        BRA_fnm_organization = {
-//            include = generic_motorized_mechanized_organization
-//            icon = GFX_idea_BRA_fnm
-//            allowed = { 
-//                has_dlc = "Trial of Allegiance"
-//                tag = BRA
-//            }
-//            available = { 
-//                IF = {
-//                    limit = {
-//                        FROM = { NOT = { original_tag = BRA } }
-//                    }
-//                    FROM = { NOT = { has_war_with = BRA } }
-//                }
-//                ELSE = {
-//                    FROM = { 
-//                        OR = { 
-//                            has_completed_focus = SMB_motorized 
-//                            has_completed_focus = BRA_fabrica_nacional_de_motores
-//                        }
-//                    }
-//                }
-//            }
-//        "#;
-//
-//    let result = all(input, &string_manager);
-//    println!("Result: {:?}", result);
-//    assert!(result.is_ok(), "Failed to parse unclosed top-level bracket: {:?}", result);
-//}
-//
-//#[test]
-//fn test_unopened_quote() {
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"Pohjois-Uudenmaan suojeluskuntapiiri" "#;
-//    let result = value(input, &string_manager);
-//    assert!(result.is_err(), "Expected error for unopened quote, got: {:?}", result);
-//}
-//
-//#[test]
-//fn test_unbalanced_quotes() {
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#""Pohjois-Uudenmaan suojeluskuntapiiri"#;
-//    let result = value(input, &string_manager);
-//    assert!(result.is_err(), "Expected error for unbalanced quotes, got: {:?}", result);
-//}
-//
-//#[test]
-//fn test_unbalanced_quotes_all() {
-//    let _ = flexi_logger::Logger::try_with_str("debug").unwrap()
-//    .log_to_file(flexi_logger::FileSpec::default().directory(std::path::PathBuf::from(".")))
-//    .duplicate_to_stderr(flexi_logger::Duplicate::Info)  
-//    .format_for_files(flexi_logger::colored_with_thread)
-//    .start();
-//    let string_manager = crate::utility::util::StringResourceManager::new();
-//    let input = r#"		
-//        7 = { "Nylands Södra skyddskårsdistrikt" } #Helsinki
-//		8 = { "Etelä-Kymenlaakson suojeluskuntapiiri" } #Kotka
-//		9 = { "Pohjois-Kymenlaakson suojeluskuntapiiri" } #Kouvola
-//		10 = { Pohjois-Uudenmaan suojeluskuntapiiri" } #Kerava"
-//		11 = { Suur-Saimaan suojeluskuntapiiri" } #Lappeenranta"
-//		12 = { Lahden suojeluskuntapiiri" } #Lahti "
-//		13 = { Lahden suojeluskuntapiiri" } #Lahti"
-//		14 = { Kanta-Hämeen suojeluskuntapiiri" } #Hämeenlinna"
-//		15 = { Lounais-Hämeen suojeluskuntapiiri" } #Forssa"
-//		16 = { "Pirkka-Hämeen suojeluskuntapiiri" } #Tampere"#;
-//    let result = value(input, &string_manager);
-//    assert!(result.is_err(), "Expected error for unbalanced quotes, got: {:?}", result);
-//}
+}

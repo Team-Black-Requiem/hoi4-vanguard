@@ -9,7 +9,7 @@ use native_dialog::FileDialog;
 extern crate winreg;
 use winreg::{RegKey, enums::*};
 
-use crate::parser;
+use crate::{parser, utility::error::print_error};
 use crate::parser::sharedparsers::truncate_input;
 
 use super::in_memory::Directory;
@@ -129,7 +129,19 @@ use super::filesystem::FileCategory;
                         // Parse the content using the `all` parser
                         //
                         layer.add_file(file_name.as_ref(), contents.clone());
-                        layer.parse_file(file_name.as_ref(), string_manager);
+                        let errors = layer.parse_file(file_name.as_ref(), string_manager);
+
+                        if !errors.is_empty() {
+                            log::error!(
+                                "❌ Parsing failed for {} ({} errors):",
+                                file_name.as_ref(),
+                                errors.len()
+                            );
+                            let src_str = String::from_utf8_lossy(&contents);
+                            for err in &errors {
+                                print_error(&src_str, err);
+                            }
+                        }
                         //match parser::sharedparsers::parse(parsecontents, string_manager) {
                         //    Ok((remaining, parsed_result)) => {
                         //        layer.add_file(file_name.as_ref(), contents.clone(), parsed_result);

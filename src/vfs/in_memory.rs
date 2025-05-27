@@ -5,7 +5,7 @@ use hash32::{FnvHasher, Hasher};
 use serde::{Deserialize, Serialize};
 //use xxhash_rust::xxh3::xxh3_64;
 
-use crate::{parser::sharedparsers::{parse, AllResult}, utility::util::StringResourceManager};
+use crate::{parser::sharedparsers::{parse, Expr}, utility::{self, util::StringResourceManager}};
 
 use super::filesystem::*;
 
@@ -28,20 +28,42 @@ impl Directory {
     pub fn add_file<P: Into<PathBuf>>(&mut self, path: P, data: Vec<u8>) -> u32 {
         let path = path.into();
         let id = self.generate_id(&path);
-        self.files.insert(id, VfsFile::new(data, AllResult::default()));
+        self.files.insert(id, VfsFile::new(data, Expr::default()));
         self.path_mapper(&path, id);
         id
     }
 
-    pub fn parse_file<P: Into<PathBuf>>(&mut self, path: P, string_manager: &StringResourceManager) -> u32 {
+    pub fn parse_file<P: Into<PathBuf>>(
+        &mut self,
+        path: P,
+        string_manager: &StringResourceManager,
+    ) -> Vec<utility::error::Error> {
         let path = path.into();
-        let id = self.resolve_path(&path).unwrap_or_else(|_| self.generate_id(&path));
-        if let Some(file) = self.files.get_mut(&id) {
-            let parseresult = parse(str::from_utf8(&file.raw_data).unwrap_or_default(), path, string_manager);
-            file.set_parsed_data(parseresult);
-
+        let id = self
+            .resolve_path(&path)
+            .unwrap_or_else(|_| self.generate_id(&path));
+    
+        match self.files.get_mut(&id) {
+            Some(file) => {
+                let contents = match std::str::from_utf8(&file.raw_data) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        return vec![utility::error::Error(
+                            0..0,
+                            format!("Invalid format - file is not UTF-8: {}", path.display()),
+                        )];
+                    }
+                };
+    
+                let (parser_result, errors) = parse(contents, string_manager);
+                file.set_parsed_data(parser_result);
+                errors
+            }
+            None => vec![utility::error::Error(
+                0..0,
+                format!("File not found in VFS: {}", path.display()),
+            )],
         }
-        id
     }
 
     pub fn add_directory<P: Into<PathBuf>>(&mut self, path: P) -> u32 {
@@ -111,7 +133,7 @@ impl Directory {
         }
     }
 
-    pub fn read_parseresult(&self, path: &Path) -> Result<&AllResult, Box<dyn Error>> {
+    pub fn read_parseresult(&self, path: &Path) -> Result<&Expr, Box<dyn Error>> {
         let id = self.resolve_path(path)?;
         if let Some(data) = self.files.get(&id) {
             Ok(data.parsed_data().get_parsetree())
@@ -142,7 +164,7 @@ pub(crate) struct VfsFile {
 }
 
 impl VfsFile {
-    pub fn new(raw_data: Vec<u8>, parseresult: AllResult) -> Self {
+    pub fn new(raw_data: Vec<u8>, parseresult: Expr) -> Self {
         Self {
             raw_data,
             parsed_data: ParseTree::new(parseresult),
@@ -162,7 +184,7 @@ impl VfsFile {
         self.raw_data = data;
     }
 
-    pub fn set_parsed_data(&mut self, parseresult: AllResult) {
+    pub fn set_parsed_data(&mut self, parseresult: Expr) {
         self.parsed_data = ParseTree::new(parseresult);
     }
 }
@@ -171,22 +193,22 @@ impl VfsFile {
 // Replace this with actual parsed output type
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct ParseTree {
-    parsetree: AllResult,
+    parsetree: Expr,
 }
 
 impl ParseTree {
-    pub fn new(parseresult: AllResult) -> Self {
+    pub fn new(parseresult: Expr) -> Self {
         Self {
             parsetree: parseresult
         }
     }
     pub fn default() -> Self {
         Self {
-            parsetree: AllResult::default()
+            parsetree: Expr::default()
         }
     }
 
-    pub fn get_parsetree(&self) -> &AllResult {
+    pub fn get_parsetree(&self) -> &Expr {
         &self.parsetree
     }
 }

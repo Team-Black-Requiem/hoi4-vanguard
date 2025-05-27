@@ -7,7 +7,7 @@ use flexi_logger::{Logger, FileSpec, Duplicate};
 mod vfs;
 mod utility;
 mod parser;
-mod scope;
+mod semantics;
 use crate::vfs::{unionfs::*, scanner};
 
 
@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test reading a file and writing it to a file
     let start_time = Instant::now();
-    match vfs.read_parseresult(PathBuf::from("common/units/names_divisions/FIN_names_divisions.txt")) {   
+    match vfs.read_parseresult(PathBuf::from("common/units/equipment/ship_hull_carrier.txt")) {   
         Ok(parsed_result) => {
             // Convert parsed data to a string or structured output
             let output_string = format!("{:#?}", parsed_result);
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         Err(err) => log::info!("Error reading file: {:?}", err),
     }
-    match vfs.read_file(PathBuf::from("common/units/names_divisions/FIN_names_divisions.txt")) {     
+    match vfs.read_file(PathBuf::from("common/units/equipment/ship_hull_carrier.txt")) {     
         Ok(data) => {
             log::info!("Test Node found in {:?}", start_time.elapsed());
             if let Err(err) = write_data_to_file(&data, "output_file.txt") {

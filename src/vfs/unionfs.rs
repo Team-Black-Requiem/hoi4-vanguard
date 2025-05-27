@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use super::in_memory::Directory;
 use super::filesystem::*;
 
-use crate::{parser::sharedparsers::AllResult, utility::util::StringResourceManager};
+use crate::{parser::sharedparsers::Expr, utility::util::StringResourceManager};
 
 // Define the vfs struct
 #[pyclass]
@@ -178,7 +178,7 @@ impl Vfs {
         &self.string_manager
     }
     
-    pub fn read_parseresult(&self, path: PathBuf) -> Result<&AllResult, Box<dyn Error>> {
+    pub fn read_parseresult(&self, path: PathBuf) -> Result<&Expr, Box<dyn Error>> {
         for (index, layer) in self.layers.iter().enumerate().rev() {
             let current_layer = self.layers.len() - index - 1;
             if self.skip_dir(current_layer, &path) {
