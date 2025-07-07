@@ -2,7 +2,7 @@ use dashmap::DashMap;
 use pyo3::pyclass;
 use std::sync::atomic::{AtomicU32, Ordering};
 use serde::{Deserialize, Serialize};
-
+use radix_trie::Trie;
 
 // Additional constants
 pub(crate) const MAGIC_CHAR: char = '\u{1E00}'; // Unicode for 'Ḁ' (Latin Capital Letter A with Ring Below)
@@ -70,15 +70,21 @@ pub struct StringResourceManager {
     counter: AtomicU32,
 }
 
-impl StringResourceManager {
-    /// Creates a new `StringResourceManager`.
-    pub fn new() -> Self {
+impl Default for StringResourceManager {
+    fn default() -> Self {
         Self {
             strings: DashMap::new(),
             ints: DashMap::new(),
             metadata: DashMap::new(),
             counter: AtomicU32::new(0),
         }
+    }
+}
+
+impl StringResourceManager {
+    /// Creates a new `StringResourceManager`.
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Interns the given string and returns its tokens.
@@ -150,5 +156,46 @@ impl StringResourceManager {
         let ls_trimmed = s.to_lowercase().trim_matches('"').to_string();
         let quoted = s.starts_with('"') && s.ends_with('"');
         (ls_trimmed, quoted)
+    }
+}
+
+
+
+#[derive(Debug, Default)]
+pub struct PrefixOptimisedStringSet {
+    trie: Trie<String, String>,
+    id_values: Vec<StringTokens>,
+}
+
+impl PrefixOptimisedStringSet {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add_with_ids(&mut self, key: &str, string_manager: &StringResourceManager) {
+        let lower_key = key.to_lowercase();
+        self.trie.insert(lower_key.clone(), key.to_string());
+        let token = string_manager.intern_identifier_token(key);
+        self.id_values.push(token);
+    }
+
+    pub fn count(&self) -> usize {
+        self.id_values.len()
+    }
+
+    pub fn id_values(&self) -> &[StringTokens] {
+        &self.id_values
+    }
+
+    pub fn string_values(&self, string_manager: &StringResourceManager) -> Vec<Option<String>> {
+        self.id_values
+            .iter()
+            .map(|token| string_manager.get_string_for_ids(token))
+            .collect()
+    }
+
+    pub fn contains_prefix(&self, prefix: &str) -> bool {
+        let prefix = prefix.to_lowercase();
+        self.trie.subtrie(&prefix).is_some()
     }
 }

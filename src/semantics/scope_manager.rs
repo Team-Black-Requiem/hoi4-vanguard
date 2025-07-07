@@ -192,10 +192,3 @@ impl ScopeManager {
         self.initialized
     }
 } 
-
-#[derive(Clone, Debug)]
-pub struct ModifierCategoryInput {
-    pub name: String,
-    pub internal_id: Option<i32>,
-    pub scopes: Vec<Scope>,
-}

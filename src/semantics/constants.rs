@@ -353,6 +353,10 @@ impl Effect {
             ref_hint,
         }
     }
+
+    pub fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl PartialEq for Effect {
