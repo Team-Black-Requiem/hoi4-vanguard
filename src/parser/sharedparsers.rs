@@ -22,27 +22,6 @@ use self::types::*;
 
 // Utility functions
 
-/// A wrapper function to add logging to a parser.
-pub fn with_logging<'a, F, O, E>(
-    mut parser: F,
-    label: &'static str,
-) -> impl FnMut(Span<'a>) -> IResult<'a, O>
-where
-    F: FnMut(&'a str) -> IResult<'a, O>,
-    E: ParseError<&'a str>,
-{
-    move |input: Span<'a>| {
-        info!("Entering parser: {}", label);
-        let result = parser(&input);
-        match &result {
-            Ok(_) => info!("Leaving parser: {} (Success)", label),
-            Err(_) => info!("Leaving parser: {} (Error)", label),
-        }
-        result
-    }
-}
-
-
 pub(crate) type Span<'a> = LocatedSpan<&'a str, State<'a>>;
 type IResult<'a, O> = NomResult<Span<'a>, O>;
 
@@ -53,45 +32,6 @@ impl State<'_> {
     /// Pushes an error onto the errors stack while still allowing parsing to continue.
     pub fn report_error(&self, error: Error) {
         self.0.add_error(error);
-    }
-}
-
-/// Evaluate `parser` and wrap the result in a `Some(_)`. Otherwise,
-/// emit the  provided `error_msg` and return a `None` while allowing
-/// parsing to continue.
-fn expect<'a, F, E, T>(mut parser: F, error_msg: E) -> impl FnMut(Span<'a>) -> IResult<'a, Option<T>>
-where
-    F: FnMut(Span<'a>) -> IResult<'a, T>,
-    E: ToString,
-{
-    move |input| match parser(input) {
-        Ok((remaining, out)) => Ok((remaining, Some(out))),
-        Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
-            let err = Error(input.to_range(), error_msg.to_string());
-            input.extra.report_error(err);
-            Ok((input, None)) // Parsing failed, but keep going.
-        }
-        Err(err) => Err(err),
-    }
-}
-
-pub fn expect_with_error<'a, F, T>(
-    mut parser: F,
-    msg: &'static str,
-) -> impl FnMut(Span<'a>) -> IResult<'a, T>
-where
-    F: FnMut(Span<'a>) -> IResult<'a, T>,
-{
-    move |input: Span<'a>| match parser(input) {
-        Ok((next, out)) => Ok((next, out)),
-        Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => {
-            input.extra.0.errors.borrow_mut().push(Error(
-                input.to_range(),
-                msg.to_string(),
-            ));
-            Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Alt)))
-        }
-        Err(e) => Err(e),
     }
 }
 
@@ -218,34 +158,21 @@ where
     H: FnMut(Span<'a>) -> IResult<'a, O2>,
 {
     move |input: Span| {
-        //debug!("Parsing between_l ({}): {:?}", label, truncate_input(&input, 2));
-
-        // Match the opening delimiter
         let (input, _) = popen(input)?;
-
-        // Parse the inner content
         let (remaining, output_inner) = p(input)?;
 
-        // Attempt to match the closing delimiter
-        match pclose(remaining) {
-            Ok((remaining, _)) => {
-                //debug!("Successfully matched closing delimiter for {}", label);
-                Ok((remaining, output_inner))
-            }
-            Err(_) => {
-                // Check if the remaining input is EOF
-                match nom::combinator::eof(remaining) {
-                    Ok((remaining, _)) => {
-                        warn!(
-                            "Unclosed top-level bracket detected at EOF for {}. Treating it as implicitly closed.",
-                            label
-                        );
-                        Ok((remaining, output_inner)) // Treat as implicitly closed
-                    }
-                    Err(e) => Err(e), // Propagate other errors
-                }
-            }
-        }
+        // Accept either the closing delimiter or EOF
+        let mut closer = nom::branch::alt((
+            |i| pclose(i).map(|(i, _)| (i, ())),
+            |i| nom::combinator::eof(i).map(|(i, _)| {
+                // warn, this is valid but weird
+                log::warn!("EOF treated as valid closer for {}", label);
+                (i, ())
+            }),
+        ));
+
+        let (remaining, _) = closer.parse(remaining)?;
+        Ok((remaining, output_inner))
     }
 }
 
@@ -355,30 +282,6 @@ fn key_q(input: Span) -> IResult<Key> {
     map(
         quoted_string, // Use the `quoted_string` parser
         |s: String| Key::new(s), // Wrap the parsed string in a `Key` struct
-    ).parse(input)
-}
-
-fn value_s_old<'a>(
-    input: Span<'a>,
-    string_manager: &'a StringResourceManager,
-) -> IResult<'a, Value> {
-    //debug!("THIS IS VALUE_S. Parsing value_s: {:?}", truncate_input(&input, 2));
-
-    // Check for a `"` at the beginning of the string and log a warning
-    // we'll make this more robust later
-    if peek(tag::<_, _, nom::error::Error<&str>>("\"")).parse(&input).is_ok() {
-        warn!(
-            "Detected a `\"` at the beginning of the string in value_s: {:?}",
-            truncate_input(&input, 2)
-        );
-    }
-    context(
-        "string",
-        map(
-            // Use `delimited` to discard the `"` at the beginning and end of the because if its here it escaped from value_q
-            delimited(opt(tag("\"")),take_while1(is_value_char),opt(tag("\""))),
-            |s: Span| Value::String(string_manager.intern_identifier_token(&s)),
-        ),
     ).parse(input)
 }
 

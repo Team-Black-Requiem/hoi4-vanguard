@@ -27,7 +27,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut vfs = Vfs::new();
     let base_game_path = scanner::get_base_game_path()?;
-    let ignore_list = vec!["unit_nudger_markers.txt".to_string(),"buildings_nudger_markers.txt".to_string(),"fakegfx2.txt".to_string(),"fakegfx.txt".to_string(),"fake2.txt".to_string(),"fake.txt".to_string(),"console_history.txt".to_string(),"interface/credits.txt".to_string(), "licenses.txt".to_string(),"changelog.txt".to_string(), "dowser.exe".to_string(), "tbb.dll".to_string(), "tbb_debug.dll".to_string(), "nakama-cpp.dll".to_string(), "pops_api.dll".to_string(), "steam_api64.dll".to_string(), "PDXBrowser_IPC.dll".to_string(), "ThirdPartyLicenses.txt".to_string(), "launcher-settings.json".to_string(), "EmptySteamDepot".to_string(), "pdx_browser".to_string(), "pdx_launcher".to_string(), "tools".to_string(), "wiki".to_string(), "launcher-assets".to_string(), "crash_reporter".to_string(), "_CommonRedist".to_string(), "browser".to_string(), "cef".to_string(), "Documents".to_string(), "dlc_metadata".to_string(), "pdx_online_assets".to_string()];
+    let ignore_list = vec![
+        "unit_nudger_markers.txt".to_string(),
+        "buildings_nudger_markers.txt".to_string(),
+        "fakegfx2.txt".to_string(),
+        "fakegfx.txt".to_string(),
+        "fake2.txt".to_string(),
+        "fake.txt".to_string(),
+        "console_history.txt".to_string(),
+        "interface/credits.txt".to_string(),
+        "licenses.txt".to_string(),
+        "changelog.txt".to_string(),
+        "dowser.exe".to_string(),
+        "tbb.dll".to_string(),
+        "tbb_debug.dll".to_string(),
+        "nakama-cpp.dll".to_string(),
+        "pops_api.dll".to_string(),
+        "steam_api64.dll".to_string(),
+        "PDXBrowser_IPC.dll".to_string(),
+        "ThirdPartyLicenses.txt".to_string(),
+        "launcher-settings.json".to_string(),
+        "EmptySteamDepot".to_string(),
+        "pdx_browser".to_string(),
+        "pdx_launcher".to_string(),
+        "tools".to_string(),
+        "wiki".to_string(),
+        "launcher-assets".to_string(),
+        "crash_reporter".to_string(),
+        "_CommonRedist".to_string(),
+        "browser".to_string(),
+        "cef".to_string(),
+        "Documents".to_string(),
+        "dlc_metadata".to_string(),
+        "pdx_online_assets".to_string()
+    ];
 
     let start_time = Instant::now();
     vfs.add_layer(scanner::scan_directory(vfs.get_string_manager(), &base_game_path, &ignore_list).expect("Failed to scan directory for vfs setup"), base_game_path);

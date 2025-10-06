@@ -1,6 +1,6 @@
 // initial filescan 
 use std::{
-    fs::{self, File}, io::Read, path::{Path, PathBuf}, str
+    fs::{self, File}, io::Read, path::{Path, PathBuf}, str, time::Instant
     };
 
 use serde::Deserialize;
@@ -92,6 +92,11 @@ use super::filesystem::FileCategory;
     pub(crate) fn scan_directory(string_manager: &crate::utility::util::StringResourceManager, path: &Path, exclude_criteria: &[String]) -> Result<Directory, Box<dyn std::error::Error>> {
         log::info!("Scanning directory: {}", path.display());
         let mut layer = Directory::new();        
+    // Accumulate parse durations to compute an average per-scan
+    let mut total_parse_duration = std::time::Duration::ZERO;
+    let mut parse_count: usize = 0;
+    // Store per-file durations for richer statistics and top-N slowest listing
+    let mut per_file_durations: Vec<(String, std::time::Duration)> = Vec::new();
         for entry in WalkDir::new(path)
         .parallelism(jwalk::Parallelism::RayonNewPool(num_cpus::get()))
         .follow_links(true)
@@ -129,7 +134,13 @@ use super::filesystem::FileCategory;
                         // Parse the content using the `all` parser
                         //
                         layer.add_file(file_name.as_ref(), contents.clone());
+                        // time only the parsing step
+                        let start = Instant::now();
                         let errors = layer.parse_file(file_name.as_ref(), string_manager);
+                        let elapsed = start.elapsed();
+                        total_parse_duration += elapsed;
+                        parse_count += 1;
+                        per_file_durations.push((file_name.to_string(), elapsed));
 
                         if !errors.is_empty() {
                             log::error!(
@@ -186,6 +197,59 @@ use super::filesystem::FileCategory;
         }
 
         //log::info!("{} {}", layer.path_mappings.len(), " files found");
+
+        // Report statistics if any files were parsed
+        if parse_count > 0 {
+            let avg_ms = (total_parse_duration.as_secs_f64() * 1000.0) / (parse_count as f64);
+
+            // Prepare a vector of durations in milliseconds for statistics
+            let mut durations_ms: Vec<f64> = per_file_durations.iter().map(|(_, d)| d.as_secs_f64() * 1000.0).collect();
+            durations_ms.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+            let min = durations_ms.first().copied().unwrap_or(0.0);
+            let max = durations_ms.last().copied().unwrap_or(0.0);
+            let median = if durations_ms.is_empty() { 0.0 } else {
+                let mid = durations_ms.len() / 2;
+                if durations_ms.len() % 2 == 0 {
+                    (durations_ms[mid - 1] + durations_ms[mid]) / 2.0
+                } else {
+                    durations_ms[mid]
+                }
+            };
+
+            // Standard deviation
+            let mean = avg_ms;
+            let variance = durations_ms.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (durations_ms.len() as f64);
+            let stddev = variance.sqrt();
+
+            // Percentiles
+            let percentile = |p: f64| -> f64 {
+                if durations_ms.is_empty() { return 0.0 }
+                let rank = p / 100.0 * ((durations_ms.len() - 1) as f64);
+                let lo = rank.floor() as usize;
+                let hi = rank.ceil() as usize;
+                if lo == hi { durations_ms[lo] } else {
+                    let w = rank - (lo as f64);
+                    durations_ms[lo] * (1.0 - w) + durations_ms[hi] * w
+                }
+            };
+            let p90 = percentile(90.0);
+            let p95 = percentile(95.0);
+
+            log::info!("Parse stats over {} files: avg={:.3} ms, min={:.3} ms, max={:.3} ms, median={:.3} ms, stddev={:.3} ms, p90={:.3} ms, p95={:.3} ms", parse_count, avg_ms, min, max, median, stddev, p90, p95);
+
+            // Top-20 slowest files
+            per_file_durations.sort_by(|a, b| b.1.cmp(&a.1));
+            let top_n = 20.min(per_file_durations.len());
+            log::info!("Top {} slowest parsed files:", top_n);
+            for (i, (path, dur)) in per_file_durations.iter().take(top_n).enumerate() {
+                let ms = dur.as_secs_f64() * 1000.0;
+                let pct = (ms / (total_parse_duration.as_secs_f64() * 1000.0)) * 100.0;
+                log::info!("  {:>2}. {:<80} {:>8.3} ms ({:>5.2}%)", i + 1, path, ms, pct);
+            }
+        } else {
+            log::info!("No files were parsed in this scan");
+        }
 
         Ok(layer)
     }

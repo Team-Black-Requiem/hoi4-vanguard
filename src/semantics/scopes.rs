@@ -17,13 +17,13 @@ pub trait IntoEffectKey {
     fn into_token(self, manager: &StringResourceManager) -> StringTokens;
 }
 
-impl<'a> IntoEffectKey for &'a str {
+impl IntoEffectKey for &str {
     fn into_token(self, manager: &StringResourceManager) -> StringTokens {
         manager.intern_identifier_token(self)
     }
 }
 
-impl<'a> IntoEffectKey for &'a StringTokens {
+impl IntoEffectKey for &StringTokens {
     fn into_token(self, _manager: &StringResourceManager) -> StringTokens {
         self.clone()
     }
@@ -223,7 +223,7 @@ pub fn create_jomini_change_scope<'a>(
         &EffectMap,
         &EffectMap,
         &[ScopedEffect],
-        &HashMap<String, ()>, // PrefixOptimisedStringSet
+        &PrefixOptimisedStringSet,
         &str,
         &ScopeContext,
     ) -> ScopeResult + 'a

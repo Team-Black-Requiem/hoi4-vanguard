@@ -19,48 +19,65 @@ pub struct DisplayRange {
 /// Convert byte offsets to line/column positions in the source string.
 /// Handles edge cases where the range is out of bounds or at EOF.
 pub fn byte_range_to_display_range(source: &str, byte_range: Range<usize>) -> DisplayRange {
-    let mut current_offset = 0;
-    let mut line_number = 1;
-    let mut start_pos = None;
-    let mut end_pos = None;
+    // Precompute byte offsets for each line start. This avoids indexing past bounds
+    // and correctly handles files that don't end with a newline.
+    let mut line_starts: Vec<usize> = Vec::new();
+    line_starts.push(0);
+    for (idx, ch) in source.char_indices() {
+        if ch == '\n' {
+            // Next character (if any) starts the following line
+            if idx + 1 < source.len() {
+                line_starts.push(idx + 1);
+            }
+        }
+    }
 
-    for (i, line) in source.lines().enumerate() {
-        // Handle both \n and \r\n endings
-        let line_len = line.len();
-        let line_ending_len = if source[current_offset + line_len..].starts_with("\r\n") { 2 } else { 1 };
-        let total_line_len = line_len + line_ending_len;
-        let line_start = current_offset;
-        let line_end = current_offset + total_line_len;
+    if line_starts.is_empty() {
+        line_starts.push(0);
+    }
 
-        if start_pos.is_none() && byte_range.start < line_end {
-            start_pos = Some(Position {
-                line: line_number,
-                column: (byte_range.start - line_start + 1).max(1),
-            });
+    let total_lines = line_starts.len();
+
+    let mut start_pos: Option<Position> = None;
+    let mut end_pos: Option<Position> = None;
+
+    for (line_idx, &line_start) in line_starts.iter().enumerate() {
+        let line_number = line_idx + 1; // 1-based
+        // Determine the end of this line in bytes. If this is not the last entry, use next start - 1.
+        let line_end = if line_idx + 1 < line_starts.len() {
+            line_starts[line_idx + 1]
+        } else {
+            source.len()
+        };
+
+        // If start hasn't been set and the byte_range.start falls within this line
+        if start_pos.is_none() && byte_range.start >= line_start && byte_range.start <= line_end {
+            // Compute column as number of chars from line_start to byte_range.start (1-based)
+            let slice = &source[line_start..byte_range.start.min(source.len())];
+            let column = slice.chars().count().saturating_add(1);
+            start_pos = Some(Position { line: line_number, column });
         }
 
-        if end_pos.is_none() && byte_range.end <= line_end {
-            end_pos = Some(Position {
-                line: line_number,
-                column: (byte_range.end - line_start + 1).max(1),
-            });
+        if end_pos.is_none() && byte_range.end >= line_start && byte_range.end <= line_end {
+            let slice = &source[line_start..byte_range.end.min(source.len())];
+            let column = slice.chars().count().saturating_add(1);
+            end_pos = Some(Position { line: line_number, column });
         }
 
         if start_pos.is_some() && end_pos.is_some() {
             break;
         }
-
-        current_offset += total_line_len;
-        line_number += 1;
     }
 
     // If the range is at or past EOF, clamp to the last line/column
-    let last_line = source.lines().count().max(1);
-    let last_line_len = source.lines().last().map(|l| l.len()).unwrap_or(0);
+    let last_line = total_lines.max(1);
+    let last_line_start = *line_starts.last().unwrap_or(&0);
+    let last_line_text = &source[last_line_start..];
+    let last_line_len_chars = last_line_text.chars().count();
 
     DisplayRange {
-        start: start_pos.unwrap_or(Position { line: last_line, column: last_line_len + 1 }),
-        end: end_pos.unwrap_or(Position { line: last_line, column: last_line_len + 1 }),
+        start: start_pos.unwrap_or(Position { line: last_line, column: last_line_len_chars + 1 }),
+        end: end_pos.unwrap_or(Position { line: last_line, column: last_line_len_chars + 1 }),
     }
 }
 
@@ -118,5 +135,5 @@ pub fn print_error(source: &str, err: &Error) {
         log::error!("   | <line not available>");
     }
 
-    log::error!("   | {}", "error".red().bold());
+    // trailing label removed (was redundant)
 }

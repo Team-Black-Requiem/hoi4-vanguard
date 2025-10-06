@@ -198,4 +198,9 @@ impl PrefixOptimisedStringSet {
         let prefix = prefix.to_lowercase();
         self.trie.subtrie(&prefix).is_some()
     }
+
+    pub fn contains_key(&self, key: &str) -> bool {
+        let key = key.to_lowercase();
+        self.trie.get(&key).is_some()
+    }
 }

@@ -263,23 +263,3 @@ impl Display for Statement {
 pub(crate) struct ParsedFile {
     pub(crate) statements: Vec<Statement>,
 }
-
-// APIs
-type ParseFile = fn(String) -> Result<ParsedFile, ()>;
-type ParseString = fn(String, String) -> Result<ParsedFile, ()>;
-type PrettyPrintFile = fn(ParsedFile) -> String;
-type PrettyPrintStatements = fn(Vec<Statement>) -> String;
-type PrettyPrintStatement = fn(Statement) -> String;
-type PrettyPrintFileResult = fn(Result<ParsedFile, ()>) -> String;
-
-struct ParserAPI {
-    parse_file: ParseFile,
-    parse_string: ParseString,
-}
-
-struct PrinterAPI {
-    pretty_print_file: PrettyPrintFile,
-    pretty_print_statements: PrettyPrintStatements,
-    pretty_print_statement: PrettyPrintStatement,
-    pretty_print_file_result: PrettyPrintFileResult,
-}
